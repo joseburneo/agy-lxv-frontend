@@ -1,15 +1,34 @@
 "use client";
 
-import { useState } from "react";
-import { Sparkles, Save, FileText } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Sparkles, Save, FileText, Loader2 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+
+interface Client {
+  id: string;
+  name: string;
+}
 
 export default function BriefsPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [briefOutput, setBriefOutput] = useState("");
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loadingClients, setLoadingClients] = useState(true);
+
+  useEffect(() => {
+    async function fetchClients() {
+      const { data, error } = await supabase.from("clients").select("id, name").order("name");
+      if (data) {
+        setClients(data);
+      }
+      setLoadingClients(false);
+    }
+    fetchClients();
+  }, []);
 
   const handleGenerate = () => {
     setIsGenerating(true);
-    // Simulate API call to backend
+    // Simulate API call to backend for MVP
     setTimeout(() => {
       setBriefOutput(`# Agency OS Campaign Brief Template v4 (Strategy Focus)\n\n---\n\n## SECTION 1 — Campaign Overview & Identity\n\n**Campaign Name:** Connect Resources – CEO – UAE – Office Space for Tech – W13\n**Offer:** Tech Office Space\n**Segment:** Technology Startups\n**Persona:** CEO / Founder\n**Angle:** Reduce overhead while maintaining a premium address.\n**Credibility Assets:** 43 tech startups housed, 98% retention.\n\n---\n\n## SECTION 2 — Audience & List Building\n\n**TAM / Market Scope:** ~2,500 active tech startups in UAE\n**Job Titles:** CEO, Founder, Managing Director\n\n---\n\n## SECTION 3 — Copywriting Strategy\n\n**The Core Tension (The Pain):** \nFounders are burning cash on standard commercial leases that don't offer flexibility for scaling teams.\n\n**The Emotional Hook:**\nCost of delay/inflexibility. Locking into a 3-year lease vs month-to-month agility.\n\n**Email 1 Strategy (The Insight & Proof):**\n- **Objective:** Challenge their traditional office lease renewal.\n- **Call to Action Angle:** Soft ask for our "Tech Hub Cost Savings" report.\n- **Key Metric:** How 43 startups saved 30% on overhead last quarter.`);
       setIsGenerating(false);
@@ -29,12 +48,19 @@ export default function BriefsPage() {
             <h3 className="font-medium text-sm border-b border-border pb-2">Campaign Parameters</h3>
             
             <div className="space-y-2">
-              <label className="text-xs font-medium text-muted-foreground">Select Client</label>
-              <select className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-                <option>Connect Resources</option>
-                <option>CAMB.AI</option>
-                <option>Luxvance</option>
-                <option>Kcal</option>
+              <label className="text-xs font-medium text-muted-foreground flex items-center justify-between">
+                Select Client
+                {loadingClients && <Loader2 className="w-3 h-3 animate-spin" />}
+              </label>
+              <select 
+                title="client-select" 
+                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+                disabled={loadingClients}
+              >
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+                {clients.length === 0 && !loadingClients && <option>No clients found</option>}
               </select>
             </div>
 
@@ -59,7 +85,7 @@ export default function BriefsPage() {
               className="w-full mt-4 flex items-center justify-center bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 rounded-md text-sm font-medium transition-colors disabled:opacity-50"
             >
               {isGenerating ? (
-                <span className="flex items-center"><div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin mr-2"></div> Thinking...</span>
+                <span className="flex items-center"><Loader2 className="w-4 h-4 animate-spin mr-2" /> Thinking...</span>
               ) : (
                 <span className="flex items-center"><Sparkles className="w-4 h-4 mr-2" /> Generate Strategy</span>
               )}
@@ -89,6 +115,7 @@ export default function BriefsPage() {
                 </div>
               ) : (
                 <textarea 
+                  title="brief-output"
                   className="w-full h-full p-6 text-sm font-mono bg-transparent border-0 resize-none focus:ring-0 outline-none leading-relaxed"
                   value={briefOutput}
                   readOnly

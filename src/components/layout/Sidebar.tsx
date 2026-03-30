@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { LayoutDashboard, Megaphone, FileText, Settings, Rocket } from "lucide-react";
+import { LayoutDashboard, Megaphone, FileText, Settings } from "lucide-react";
+import { SyncButton } from "@/components/SyncButton";
 
 export function Sidebar() {
   return (
@@ -22,7 +23,8 @@ export function Sidebar() {
           Brief Generator
         </Link>
       </nav>
-      <div className="p-4 border-t border-border">
+      <div className="p-4 border-t border-border space-y-1">
+        <SyncButton />
         <Link href="/settings" className="flex items-center px-3 py-2 text-sm font-medium rounded-md text-muted-foreground hover:bg-secondary hover:text-secondary-foreground transition-colors">
           <Settings className="w-4 h-4 mr-3" />
           Settings
