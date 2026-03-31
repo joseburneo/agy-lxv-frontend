@@ -29,7 +29,7 @@ export default function CampaignsPage() {
     setOptimizationResult(null);
     setIsModalOpen(true);
     try {
-      const res = await fetch("https://agy-lxv-operations.onrender.com/api/copilot/optimize", {
+      const res = await fetch("https://agency-os-api.onrender.com/api/copilot/optimize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
