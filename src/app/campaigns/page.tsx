@@ -444,13 +444,17 @@ export default function CampaignsPage() {
                   {scannedCount < totalActive && <span className="text-[9px] text-muted-foreground ml-0.5">{scannedCount}/{totalActive}</span>}
                 </button>
                 {!copyQAScanning ? (
-                  <button onClick={scanActiveCopyQA} className="px-2 py-2 text-sm font-medium rounded-md transition-colors bg-card border border-border text-muted-foreground hover:text-primary hover:border-primary/30 hover:bg-primary/5" title="Scan all active campaigns for copy issues">
+                  <button onClick={scanActiveCopyQA} className="px-3 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-1.5 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 hover:border-primary/50 hover:shadow-md hover:shadow-primary/10">
                     <Search className="w-3.5 h-3.5" />
+                    <span>Scan Active</span>
                   </button>
                 ) : (
-                  <div className="px-2 py-2 flex items-center gap-1.5 text-xs text-primary">
+                  <div className="px-3 py-2 flex items-center gap-2 text-xs text-primary bg-primary/5 border border-primary/20 rounded-md">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span className="text-[10px]">{copyQAScanProgress.done}/{copyQAScanProgress.total}</span>
+                    <span className="font-medium">Scanning {copyQAScanProgress.done}/{copyQAScanProgress.total}</span>
+                    <div className="w-16 h-1.5 bg-secondary rounded-full overflow-hidden">
+                      <div className="h-full bg-primary rounded-full transition-all duration-300" style={{ width: `${copyQAScanProgress.total > 0 ? (copyQAScanProgress.done / copyQAScanProgress.total) * 100 : 0}%` }} />
+                    </div>
                   </div>
                 )}
               </div>
@@ -705,7 +709,7 @@ export default function CampaignsPage() {
                               <Eye className="w-3 h-3" /> Preview
                             </button>
                             <button onClick={() => setShowRawCopy(true)} className={`flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-sm transition-colors ${showRawCopy ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
-                              <Code2 className="w-3 h-3" /> Raw
+                              <Code2 className="w-3 h-3" /> Source
                             </button>
                           </div>
                           <span className="text-[10px] text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">from Instantly</span>
@@ -873,10 +877,12 @@ export default function CampaignsPage() {
                                       <span className="text-foreground font-medium">{variant.subject}</span>
                                     </p>
                                   )}
-                                  {showRawCopy && variant.body_raw ? (
+                                  {showRawCopy ? (
                                     <div className="text-xs text-foreground/70 whitespace-pre-wrap leading-relaxed font-mono bg-[#1a1a2e] rounded-md p-3 border border-border/50 overflow-x-auto">
-                                      <code>{variant.body_raw}</code>
+                                      <code>{variant.body_raw || variant.body}</code>
                                     </div>
+                                  ) : variant.body_raw ? (
+                                    <div className="text-sm text-foreground bg-white dark:bg-[#1e1e2e] rounded-md p-4 border border-border/50 overflow-x-auto prose prose-sm dark:prose-invert max-w-none [&_a]:text-primary [&_a]:underline" dangerouslySetInnerHTML={{ __html: variant.body_raw }} />
                                   ) : (
                                     <div className="text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed font-mono bg-secondary/30 rounded-md p-3 border border-border/50">
                                       {variant.body}
