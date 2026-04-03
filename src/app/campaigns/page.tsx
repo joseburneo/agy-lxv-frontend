@@ -13,6 +13,7 @@ interface CampaignItem {
   open: string;
   reply: string;
   opportunities: number;
+  replies: number;
   copyErrors: string[];
   isCompliant: boolean;
   status: string;
@@ -65,6 +66,7 @@ export default function CampaignsPage() {
         open_rate,
         reply_rate,
         opportunities,
+        replies,
         copy_errors,
         is_compliant,
         status,
@@ -84,6 +86,7 @@ export default function CampaignsPage() {
         open: c.open_rate,
         reply: c.reply_rate,
         opportunities: c.opportunities || 0,
+        replies: c.replies || 0,
         copyErrors: Array.isArray(c.copy_errors) ? c.copy_errors : [],
         isCompliant: c.is_compliant,
         status: c.status || 'Active'
@@ -176,7 +179,7 @@ export default function CampaignsPage() {
                 <th className="px-4 py-3">Client</th>
                 <th className="px-4 py-3">Sent</th>
                 <th className="px-4 py-3">Open Rate</th>
-                <th className="px-4 py-3">Reply Rate</th>
+                <th className="px-4 py-3">Engagement (Replies / Opps)</th>
                 <th className="px-4 py-3">Tier</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
@@ -199,8 +202,8 @@ export default function CampaignsPage() {
                 }
                 
                 // Positivity Logic (Opportunities / Total Replied)
-                // Roughly infer total replied by multiplying reply rate * emails sent
-                const repliedCountApprox = Math.floor(campaign.sent * (replyRateFloat / 100));
+                // Use explicit replies from the DB if available, else approximate
+                const repliedCountApprox = campaign.replies > 0 ? campaign.replies : Math.floor(campaign.sent * (replyRateFloat / 100));
                 let posRate = 0;
                 if (repliedCountApprox > 0) posRate = (campaign.opportunities / repliedCountApprox) * 100;
                 
@@ -238,19 +241,29 @@ export default function CampaignsPage() {
                     <td className="px-4 py-4">{campaign.sent.toLocaleString()}</td>
                     <td className="px-4 py-4">{campaign.open}</td>
                     <td className={`px-4 py-4 ${isReplyLow ? 'text-destructive font-semibold' : ''}`}>
-                      <div className="flex items-center space-x-2">
-                        <span>{campaign.reply}</span>
-                        {isReplyLow && (
-                          <div title="Reply rate below 0.5%!">
-                            <AlertCircle className="w-3.5 h-3.5 text-destructive" />
-                          </div>
-                        )}
+                      <div className="flex flex-col space-y-1.5">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-medium text-sm">{campaign.reply} Rate</span>
+                          <span className="text-xs text-muted-foreground bg-secondary/50 px-1.5 py-0.5 rounded flex items-center border border-border">
+                            <span className="mr-1">💬</span> {campaign.replies} Total
+                          </span>
+                          {isReplyLow && (
+                            <div title="Reply rate below 0.5%!">
+                              <AlertCircle className="w-3.5 h-3.5 text-destructive" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-2 text-xs">
+                           <span className={`px-1.5 py-0.5 rounded flex items-center font-medium border ${campaign.opportunities > 0 ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-secondary/50 text-muted-foreground border-border'}`}>
+                             <span className="mr-1">💼</span> {campaign.opportunities} Opps
+                           </span>
+                           {campaign.opportunities > 0 && (
+                             <span className="text-muted-foreground font-medium tracking-tight" title={`${campaign.opportunities} opportunities / ${repliedCountApprox} replies`}>
+                               ( {posRate.toFixed(1)}% Positivity )
+                             </span>
+                           )}
+                        </div>
                       </div>
-                      {campaign.opportunities > 0 && (
-                        <p className="text-xs text-muted-foreground mt-1 tracking-tight" title={`${campaign.opportunities} opportunities / ~${repliedCountApprox} replies`}>
-                          {posRate.toFixed(1)}% Positivity Rate
-                        </p>
-                      )}
                     </td>
                     <td className="px-4 py-4">
                       <span className={`inline-flex items-center space-x-1.5 px-2.5 py-1 text-xs font-semibold rounded-md border ${tier.colBg.replace('/10', '/20')} ${tier.colBg} ${tier.textCol}`}>
