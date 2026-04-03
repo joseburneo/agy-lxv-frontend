@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AlertCircle, CheckCircle2, Search, Edit2, Loader2, RefreshCw, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, Search, Edit2, Loader2, RefreshCw, X, HelpCircle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "@/lib/supabase";
 
@@ -174,13 +174,27 @@ export default function CampaignsPage() {
           <table className="w-full text-sm text-left">
             <thead className="bg-secondary/50 text-muted-foreground text-xs uppercase font-medium border-b border-border">
               <tr>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 w-[45%]">Campaign Name</th>
+                <th className="px-4 py-3 w-[45%]">Campaign Info</th>
                 <th className="px-4 py-3">Client</th>
-                <th className="px-4 py-3">Sent</th>
-                <th className="px-4 py-3">Open Rate</th>
-                <th className="px-4 py-3">Engagement (Replies / Opps)</th>
-                <th className="px-4 py-3">Tier</th>
+                <th className="px-4 py-3">Outreach</th>
+                <th className="px-4 py-3">Engagement</th>
+                <th className="px-4 py-3">
+                  <div className="flex items-center space-x-1">
+                    <span>Tier</span>
+                    <div className="group relative ml-1 flex items-center">
+                      <HelpCircle className="w-3.5 h-3.5 text-muted-foreground/70 cursor-help hover:text-muted-foreground transition-colors" />
+                      <div className="absolute top-1/2 -translate-y-1/2 left-full ml-2 w-64 p-3 bg-zinc-950 text-xs text-zinc-300 rounded shadow-xl border border-zinc-800 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+                        <p className="font-semibold text-zinc-100 mb-1 border-b border-zinc-800 pb-1">Performance Legend</p>
+                        <ul className="space-y-1 mt-2">
+                          <li><span className="text-emerald-500 font-medium">Excellent 🤩</span>: 1 opp per &lt; 300 sent</li>
+                          <li><span className="text-blue-500 font-medium">Good 🙂</span>: 1 opp per 300 - 600 sent</li>
+                          <li><span className="text-amber-500 font-medium">Average 😐</span>: 1 opp per 600 - 1000 sent</li>
+                          <li><span className="text-destructive font-medium">Below Avg 📉</span>: 1 opp per &gt; 1000 sent</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -209,68 +223,80 @@ export default function CampaignsPage() {
                 
                 return (
                   <tr key={campaign.id} className="hover:bg-secondary/30 transition-colors">
-                    <td className="px-4 py-4">
-                      {campaign.isCompliant ? (
-                         <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      ) : (
-                         <AlertCircle className="w-4 h-4 text-destructive" />
-                      )}
-                    </td>
+                    {/* Column 1: Campaign Info */}
                     <td className={`px-4 py-4 font-medium ${!campaign.isCompliant ? 'text-destructive' : 'text-foreground'}`}>
                       <div className="flex items-center space-x-2">
                         <span>{campaign.name}</span>
+                        {!campaign.isCompliant && (
+                           <div title="Naming Error: Standard is [Client] – [Persona] – [Location] – [Offer/Segment] – W[##]" className="bg-destructive/10 text-destructive text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded cursor-help flex items-center shrink-0 border border-destructive/20">
+                             <AlertCircle className="w-3 h-3 mr-1" />
+                             Unnamed
+                           </div>
+                        )}
                         {campaign.copyErrors.length > 0 && (
                           <div 
                             title={campaign.copyErrors.join('\n')}
-                            className="bg-destructive/10 text-destructive p-1 rounded-full cursor-help hover:bg-destructive/20 transition-colors"
+                            className="bg-amber-500/10 text-amber-500 border border-amber-500/20 p-1 rounded-full cursor-help hover:bg-amber-500/20 transition-colors shrink-0"
                           >
                             <AlertCircle className="w-4 h-4" />
                           </div>
                         )}
                         {campaign.status !== 'Active' && (
-                          <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded-full uppercase tracking-wider">{campaign.status}</span>
+                          <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0 border border-border">{campaign.status}</span>
                         )}
                       </div>
-                      {!campaign.isCompliant && (
-                        <p className="text-xs text-muted-foreground font-normal mt-1 border border-destructive/30 bg-destructive/10 inline-block px-2 py-0.5 rounded text-destructive-foreground/80">
-                          Standard: [Client] – [Persona] – [Location] – [Offer/Segment] – W[##]
-                        </p>
-                      )}
                     </td>
+                    
+                    {/* Column 2: Client */}
                     <td className="px-4 py-4 text-muted-foreground">{campaign.client}</td>
-                    <td className="px-4 py-4">{campaign.sent.toLocaleString()}</td>
-                    <td className="px-4 py-4">{campaign.open}</td>
-                    <td className={`px-4 py-4 ${isReplyLow ? 'text-destructive font-semibold' : ''}`}>
-                      <div className="flex flex-col space-y-1.5">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-medium text-sm">{campaign.reply} Rate</span>
-                          <span className="text-xs text-muted-foreground bg-secondary/50 px-1.5 py-0.5 rounded flex items-center border border-border">
-                            <span className="mr-1">💬</span> {campaign.replies} Total
-                          </span>
-                          {isReplyLow && (
-                            <div title="Reply rate below 0.5%!">
-                              <AlertCircle className="w-3.5 h-3.5 text-destructive" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex items-center space-x-2 text-xs">
-                           <span className={`px-1.5 py-0.5 rounded flex items-center font-medium border ${campaign.opportunities > 0 ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-secondary/50 text-muted-foreground border-border'}`}>
-                             <span className="mr-1">💼</span> {campaign.opportunities} Opps
-                           </span>
-                           {campaign.opportunities > 0 && (
-                             <span className="text-muted-foreground font-medium tracking-tight" title={`${campaign.opportunities} opportunities / ${repliedCountApprox} replies`}>
-                               ( {posRate.toFixed(1)}% Positivity )
-                             </span>
-                           )}
-                        </div>
+                    
+                    {/* Column 3: Outreach (Sent & Open) */}
+                    <td className="px-4 py-4">
+                      <div className="flex flex-col">
+                         <span className="text-base font-semibold">{campaign.sent.toLocaleString()}</span>
+                         <span className="text-[11px] text-muted-foreground font-medium mt-0.5" title="Open Rate">{campaign.open} Open</span>
                       </div>
                     </td>
+                    
+                    {/* Column 4: Engagement (Replies & Opps) */}
+                    <td className={`px-4 py-4 ${isReplyLow ? 'text-destructive font-semibold' : ''}`}>
+                      <div className="flex space-x-6 items-center">
+                         {/* Replies Block */}
+                         <div className="flex flex-col items-center justify-center">
+                           <span className="text-base font-bold flex items-center" title="Total Replies">
+                             <span className="text-xs mr-1.5 opacity-70">💬</span> {campaign.replies}
+                           </span>
+                           <div className="flex items-center space-x-1 mt-0.5">
+                             <span className="text-[10px] text-muted-foreground tracking-wide font-medium bg-secondary/50 px-1 rounded">
+                               {campaign.reply} Rate
+                             </span>
+                             {isReplyLow && (
+                               <div title="Reply rate critically low (<0.5%)">
+                                 <AlertCircle className="w-3 h-3 text-destructive" />
+                               </div>
+                             )}
+                           </div>
+                         </div>
+                         
+                         {/* Opps Block */}
+                         <div className={`flex flex-col items-center justify-center ${campaign.opportunities > 0 ? 'text-amber-500' : 'text-muted-foreground'}`}>
+                           <span className="text-base font-bold flex items-center" title="Opportunities">
+                             <span className="text-xs mr-1 opacity-70">💼</span> {campaign.opportunities}
+                           </span>
+                           <span className={`text-[10px] tracking-wide font-medium mt-0.5 px-1 rounded ${campaign.opportunities > 0 ? 'bg-amber-500/10' : 'bg-secondary/50'}`}>
+                             {campaign.opportunities > 0 ? `${posRate.toFixed(1)}% Positivity` : '0%'}
+                           </span>
+                         </div>
+                      </div>
+                    </td>
+                    
+                    {/* Column 5: Tier Classification */}
                     <td className="px-4 py-4">
                       <span className={`inline-flex items-center space-x-1.5 px-2.5 py-1 text-xs font-semibold rounded-md border ${tier.colBg.replace('/10', '/20')} ${tier.colBg} ${tier.textCol}`}>
                         <span>{tier.label}</span> <span>{tier.emoji}</span>
                       </span>
                       {campaign.opportunities > 0 && (
-                        <p className="text-[10px] text-muted-foreground mt-1 font-medium">1 per {Math.round(campaign.sent / campaign.opportunities)} sent</p>
+                        <p className="text-[10px] text-muted-foreground mt-1 font-medium">✨ 1 opp / {Math.round(campaign.sent / campaign.opportunities)} sent</p>
                       )}
                     </td>
                     <td className="px-4 py-4 text-right space-x-2">
