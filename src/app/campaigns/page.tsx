@@ -86,7 +86,7 @@ type ReplyCategoryFilter = "all" | "positive" | "mql" | "negative" | "ooo" | "ot
 
 type SortKey = "tier" | "sent" | "reply" | "name";
 type SortDir = "asc" | "desc";
-type StatusFilter = "all" | "active" | "paused" | "completed" | "violations";
+type StatusFilter = "all" | "active" | "paused" | "completed" | "violations" | "copyQA";
 
 export default function CampaignsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
@@ -126,6 +126,11 @@ export default function CampaignsPage() {
   const [editBody, setEditBody] = useState("");
   const [editSaving, setEditSaving] = useState(false);
   const [editResult, setEditResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Copy QA Intelligence Cache
+  const [copyQACache, setCopyQACache] = useState<Map<string, CopyAudit>>(new Map());
+  const [copyQAScanning, setCopyQAScanning] = useState(false);
+  const [copyQAScanProgress, setCopyQAScanProgress] = useState({ done: 0, total: 0 });
 
   // Filtered replies based on selected category
   const filteredReplies = useMemo(() => {
@@ -238,8 +243,43 @@ export default function CampaignsPage() {
       const res = await fetch(`${API_BASE}/api/campaigns/detail`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ campaign_id: campaign.id, client_name: campaign.client, campaign_name: campaign.name }) });
       const data = await res.json();
       setDrawerData(data);
+      // Cache the copy audit result for the Action Center badge
+      if (data.copy_audit) {
+        setCopyQACache(prev => {
+          const next = new Map(prev);
+          next.set(campaign.id, data.copy_audit);
+          return next;
+        });
+      }
     } catch (err) { console.error("Failed to load campaign detail", err); }
     finally { setDrawerLoading(false); }
+  };
+
+  // Batch scan all active campaigns for Copy QA issues
+  const scanActiveCopyQA = async () => {
+    const activeCampaigns = campaigns.filter(c => c.status.toLowerCase() === 'active');
+    setCopyQAScanning(true);
+    setCopyQAScanProgress({ done: 0, total: activeCampaigns.length });
+    for (let i = 0; i < activeCampaigns.length; i++) {
+      const c = activeCampaigns[i];
+      if (copyQACache.has(c.id)) {
+        setCopyQAScanProgress(p => ({ ...p, done: p.done + 1 }));
+        continue; // Already cached
+      }
+      try {
+        const res = await fetch(`${API_BASE}/api/campaigns/detail`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ campaign_id: c.id, client_name: c.client, campaign_name: c.name }) });
+        const data = await res.json();
+        if (data.copy_audit) {
+          setCopyQACache(prev => {
+            const next = new Map(prev);
+            next.set(c.id, data.copy_audit);
+            return next;
+          });
+        }
+      } catch (err) { console.error(`Copy QA scan failed for ${c.name}`, err); }
+      setCopyQAScanProgress(p => ({ ...p, done: p.done + 1 }));
+    }
+    setCopyQAScanning(false);
   };
 
   const handleDrawerOptimize = async () => {
@@ -301,9 +341,17 @@ export default function CampaignsPage() {
 
   // ---- Filtering + Sorting ----
   const filtered = useMemo(() => {
+    // Compute campaigns with copy QA issues (from cache)
+    const copyQAIssueCampaignIds = new Set(
+      Array.from(copyQACache.entries())
+        .filter(([_, audit]) => audit.critical > 0 || audit.warnings > 0)
+        .map(([id]) => id)
+    );
+
     let list = campaigns.filter(c => {
       // Status filter
-      if (statusFilter === "violations") return !c.isCompliant;
+      if (statusFilter === "violations") return !c.isCompliant && c.status.toLowerCase() === 'active';
+      if (statusFilter === "copyQA") return copyQAIssueCampaignIds.has(c.id);
       if (statusFilter !== "all" && c.status.toLowerCase() !== statusFilter) return false;
       return true;
     });
@@ -326,21 +374,21 @@ export default function CampaignsPage() {
       return sortDir === "asc" ? cmp : -cmp;
     });
     return list;
-  }, [campaigns, statusFilter, selectedClient, selectedTiers, searchQuery, sortKey, sortDir]);
+  }, [campaigns, statusFilter, selectedClient, selectedTiers, searchQuery, sortKey, sortDir, copyQACache]);
 
   // Tier counts for filter pills
   const tierCounts = useMemo(() => {
     const counts: Record<TierLabel, number> = { Critical: 0, "Below Avg": 0, Average: 0, Good: 0, Excellent: 0, Evaluating: 0 };
-    // Count from currently status-filtered + client-filtered campaigns
     let base = campaigns.filter(c => {
-      if (statusFilter === "violations") return !c.isCompliant;
+      if (statusFilter === "violations") return !c.isCompliant && c.status.toLowerCase() === 'active';
+      if (statusFilter === "copyQA") return copyQACache.has(c.id);
       if (statusFilter !== "all" && c.status.toLowerCase() !== statusFilter) return false;
       if (selectedClient !== "all" && c.client !== selectedClient) return false;
       return true;
     });
     base.forEach(c => { counts[computeTier(c.sent, c.opportunities).label]++; });
     return counts;
-  }, [campaigns, statusFilter, selectedClient]);
+  }, [campaigns, statusFilter, selectedClient, copyQACache]);
 
   const activeFilterCount = (selectedClient !== "all" ? 1 : 0) + selectedTiers.size;
 
@@ -361,10 +409,53 @@ export default function CampaignsPage() {
               <button key={f} onClick={() => setStatusFilter(f)} className={`px-4 py-1.5 text-sm font-medium rounded-sm transition-colors capitalize ${statusFilter === f ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}>{f}</button>
             ))}
           </div>
-          <button onClick={() => setStatusFilter("violations")} className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center ${statusFilter === "violations" ? "bg-destructive text-destructive-foreground shadow-sm" : "bg-card border border-border text-foreground hover:bg-secondary"}`}>
-            <AlertCircle className="w-4 h-4 mr-2" />
-            Violations ({campaigns.filter(c => !c.isCompliant).length})
-          </button>
+          {/* Naming Violations Badge — active campaigns only */}
+          {(() => {
+            const activeViolations = campaigns.filter(c => !c.isCompliant && c.status.toLowerCase() === 'active').length;
+            return activeViolations > 0 ? (
+              <button onClick={() => setStatusFilter(statusFilter === "violations" ? "active" : "violations")} className={`px-3 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-1.5 ${statusFilter === "violations" ? "bg-destructive text-destructive-foreground shadow-sm ring-2 ring-destructive/30" : "bg-card border border-border text-foreground hover:bg-destructive/10 hover:border-destructive/30"}`}>
+                <AlertCircle className="w-4 h-4" />
+                <span>Naming</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${statusFilter === "violations" ? "bg-white/20" : "bg-destructive/10 text-destructive"}`}>{activeViolations}</span>
+              </button>
+            ) : null;
+          })()}
+          {/* Copy QA Badge */}
+          {(() => {
+            const issueCount = Array.from(copyQACache.entries()).filter(([id, audit]) => {
+              const camp = campaigns.find(c => c.id === id);
+              return camp && camp.status.toLowerCase() === 'active' && (audit.critical > 0 || audit.warnings > 0);
+            }).length;
+            const scannedCount = Array.from(copyQACache.keys()).filter(id => {
+              const camp = campaigns.find(c => c.id === id);
+              return camp && camp.status.toLowerCase() === 'active';
+            }).length;
+            const totalActive = campaigns.filter(c => c.status.toLowerCase() === 'active').length;
+            return (
+              <div className="flex items-center gap-1">
+                <button onClick={() => { if (issueCount > 0) setStatusFilter(statusFilter === "copyQA" ? "active" : "copyQA"); }} className={`px-3 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-1.5 ${statusFilter === "copyQA" ? "bg-amber-500 text-white shadow-sm ring-2 ring-amber-500/30" : issueCount > 0 ? "bg-card border border-border text-foreground hover:bg-amber-500/10 hover:border-amber-500/30" : "bg-card border border-border text-muted-foreground"}`}>
+                  <ShieldAlert className="w-4 h-4" />
+                  <span>Copy QA</span>
+                  {issueCount > 0 ? (
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${statusFilter === "copyQA" ? "bg-white/20" : "bg-amber-500/10 text-amber-500"}`}>{issueCount}</span>
+                  ) : scannedCount > 0 ? (
+                    <span className="text-[10px] text-muted-foreground">✓</span>
+                  ) : null}
+                  {scannedCount < totalActive && <span className="text-[9px] text-muted-foreground ml-0.5">{scannedCount}/{totalActive}</span>}
+                </button>
+                {!copyQAScanning ? (
+                  <button onClick={scanActiveCopyQA} className="px-2 py-2 text-sm font-medium rounded-md transition-colors bg-card border border-border text-muted-foreground hover:text-primary hover:border-primary/30 hover:bg-primary/5" title="Scan all active campaigns for copy issues">
+                    <Search className="w-3.5 h-3.5" />
+                  </button>
+                ) : (
+                  <div className="px-2 py-2 flex items-center gap-1.5 text-xs text-primary">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span className="text-[10px]">{copyQAScanProgress.done}/{copyQAScanProgress.total}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
