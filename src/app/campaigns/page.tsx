@@ -114,7 +114,20 @@ export default function CampaignsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Campaign Monitor</h2>
-          <p className="text-muted-foreground mt-1 text-sm">Monitor campaign velocity, reply performance, and adhere to the Agency OS naming conventions.</p>
+          <div className="flex items-center space-x-4 mt-2">
+            <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">Tier Legend</span>
+            <div className="flex items-center space-x-3 text-[11px] font-medium">
+              <span className="flex items-center space-x-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span><span className="text-emerald-500">Excellent</span><span className="text-muted-foreground">1–300</span></span>
+              <span className="text-border">|</span>
+              <span className="flex items-center space-x-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block"></span><span className="text-blue-500">Good</span><span className="text-muted-foreground">301–600</span></span>
+              <span className="text-border">|</span>
+              <span className="flex items-center space-x-1"><span className="w-2 h-2 rounded-full bg-amber-500 inline-block"></span><span className="text-amber-500">Average</span><span className="text-muted-foreground">601–900</span></span>
+              <span className="text-border">|</span>
+              <span className="flex items-center space-x-1"><span className="w-2 h-2 rounded-full bg-orange-500 inline-block"></span><span className="text-orange-500">Below Avg</span><span className="text-muted-foreground">901–1200</span></span>
+              <span className="text-border">|</span>
+              <span className="flex items-center space-x-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block"></span><span className="text-red-500">Critical</span><span className="text-muted-foreground">1200+</span></span>
+            </div>
+          </div>
         </div>
         <div className="flex space-x-2">
           <button 
@@ -178,23 +191,7 @@ export default function CampaignsPage() {
                 <th className="px-4 py-3">Client</th>
                 <th className="px-4 py-3">Outreach</th>
                 <th className="px-4 py-3">Engagement</th>
-                <th className="px-4 py-3">
-                  <div className="flex items-center space-x-1">
-                    <span>Tier</span>
-                    <div className="group relative ml-1 flex items-center">
-                      <HelpCircle className="w-3.5 h-3.5 text-muted-foreground/70 cursor-help hover:text-muted-foreground transition-colors" />
-                      <div className="absolute top-1/2 -translate-y-1/2 left-full ml-2 w-64 p-3 bg-zinc-950 text-xs text-zinc-300 rounded shadow-xl border border-zinc-800 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
-                        <p className="font-semibold text-zinc-100 mb-1 border-b border-zinc-800 pb-1">Performance Legend</p>
-                        <ul className="space-y-1 mt-2">
-                          <li><span className="text-emerald-500 font-medium">Excellent 🤩</span>: 1 opp per &lt; 300 sent</li>
-                          <li><span className="text-blue-500 font-medium">Good 🙂</span>: 1 opp per 300 - 600 sent</li>
-                          <li><span className="text-amber-500 font-medium">Average 😐</span>: 1 opp per 600 - 1000 sent</li>
-                          <li><span className="text-destructive font-medium">Below Avg 📉</span>: 1 opp per &gt; 1000 sent</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </th>
+                <th className="px-4 py-3">Tier</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -209,10 +206,11 @@ export default function CampaignsPage() {
                   const sentPerOpp = campaign.sent / campaign.opportunities;
                   if (sentPerOpp <= 300) tier = { label: "Excellent", colBg: "bg-emerald-500/10", textCol: "text-emerald-500", emoji: "🤩" };
                   else if (sentPerOpp <= 600) tier = { label: "Good", colBg: "bg-blue-500/10", textCol: "text-blue-500", emoji: "🙂" };
-                  else if (sentPerOpp <= 1000) tier = { label: "Average", colBg: "bg-amber-500/10", textCol: "text-amber-500", emoji: "😐" };
-                  else tier = { label: "Below Average", colBg: "bg-destructive/10", textCol: "text-destructive", emoji: "📉" };
+                  else if (sentPerOpp <= 900) tier = { label: "Average", colBg: "bg-amber-500/10", textCol: "text-amber-500", emoji: "😐" };
+                  else if (sentPerOpp <= 1200) tier = { label: "Below Avg", colBg: "bg-orange-500/10", textCol: "text-orange-500", emoji: "📉" };
+                  else tier = { label: "Critical", colBg: "bg-red-500/10", textCol: "text-red-500", emoji: "🚨" };
                 } else if (campaign.sent > 600) {
-                  tier = { label: "Below Average", colBg: "bg-destructive/10", textCol: "text-destructive", emoji: "📉" };
+                  tier = { label: "Critical", colBg: "bg-red-500/10", textCol: "text-red-500", emoji: "🚨" };
                 }
                 
                 // Positivity Logic (Opportunities / Total Replied)
@@ -228,10 +226,7 @@ export default function CampaignsPage() {
                       <div className="flex items-center space-x-2">
                         <span>{campaign.name}</span>
                         {!campaign.isCompliant && (
-                           <div title="Naming Error: Standard is [Client] – [Persona] – [Location] – [Offer/Segment] – W[##]" className="bg-destructive/10 text-destructive text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded cursor-help flex items-center shrink-0 border border-destructive/20">
-                             <AlertCircle className="w-3 h-3 mr-1" />
-                             Unnamed
-                           </div>
+                           <span title="Non-standard naming" className="text-destructive/70 cursor-help shrink-0">⚠️</span>
                         )}
                         {campaign.copyErrors.length > 0 && (
                           <div 
