@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { AlertCircle, Search, Edit2, Loader2, RefreshCw, X, Check, Sparkles, ChevronUp, ChevronDown, Mail, MessageSquare, Zap, ArrowUpDown, ChevronRight, Filter, Users } from "lucide-react";
+import { AlertCircle, Search, Edit2, Loader2, RefreshCw, X, Check, Sparkles, ChevronUp, ChevronDown, Mail, MessageSquare, Zap, ArrowUpDown, ChevronRight, Filter, Users, Eye, Code2, Copy, CheckCircle2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "@/lib/supabase";
 
@@ -76,8 +76,9 @@ function ReplyCategoryBadge({ category }: { category: string }) {
 // ---- Types ----
 interface CampaignItem { id: string; name: string; client: string; sent: number; open: string; reply: string; opportunities: number; replies: number; copyErrors: string[]; isCompliant: boolean; status: string; }
 interface ReplyItem { category: string; first_name: string; last_name: string; email: string; job_title: string; company_name: string; outreach_email: string; lead_reply: string; reply_date: string; campaign_name: string; }
-interface SequenceStep { step: number; delay: number; variants: { subject: string; body: string }[]; }
+interface SequenceStep { step: number; delay: number; variants: { subject: string; body: string; body_raw?: string; is_active?: boolean }[]; }
 interface CampaignDetail { sequences: SequenceStep[]; replies: ReplyItem[]; reply_summary: { total: number; positive: number; mql: number; negative: number; ooo: number; bounced: number; other: number }; }
+type ReplyCategoryFilter = "all" | "positive" | "mql" | "negative" | "ooo" | "other";
 
 type SortKey = "tier" | "sent" | "reply" | "name";
 type SortDir = "asc" | "desc";
@@ -111,6 +112,29 @@ export default function CampaignsPage() {
   const [drawerData, setDrawerData] = useState<CampaignDetail | null>(null);
   const [drawerOptResult, setDrawerOptResult] = useState<string | null>(null);
   const [drawerOptLoading, setDrawerOptLoading] = useState(false);
+  const [replyCategoryFilter, setReplyCategoryFilter] = useState<ReplyCategoryFilter>("all");
+  const [showRawCopy, setShowRawCopy] = useState(false);
+  const [copiedIdx, setCopiedIdx] = useState<string | null>(null);
+
+  // Filtered replies based on selected category
+  const filteredReplies = useMemo(() => {
+    if (!drawerData?.replies) return [];
+    if (replyCategoryFilter === "all") return drawerData.replies;
+    return drawerData.replies.filter(r => {
+      const cat = r.category.toLowerCase();
+      if (replyCategoryFilter === "positive") return cat.includes("positive") || cat.includes("sql");
+      if (replyCategoryFilter === "mql") return cat.includes("mql");
+      if (replyCategoryFilter === "negative") return cat.includes("negative") || cat.includes("not interested");
+      if (replyCategoryFilter === "ooo") return cat.includes("out of office") || cat.includes("ooo") || cat.includes("bounce");
+      return true;
+    });
+  }, [drawerData?.replies, replyCategoryFilter]);
+
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIdx(id);
+    setTimeout(() => setCopiedIdx(null), 2000);
+  };
 
   const namingPreview = useMemo(() => {
     if (!namingCampaign) return "";
@@ -156,6 +180,8 @@ export default function CampaignsPage() {
     setDrawerTab("copy");
     setDrawerData(null);
     setDrawerOptResult(null);
+    setReplyCategoryFilter("all");
+    setShowRawCopy(false);
     setDrawerOpen(true);
     setDrawerLoading(true);
     try {
@@ -532,25 +558,83 @@ export default function CampaignsPage() {
                     <div className="space-y-4">
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center"><Mail className="w-4 h-4 mr-2 text-primary" />Live Email Sequence</h4>
-                        <span className="text-[10px] text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">from Instantly</span>
+                        <div className="flex items-center gap-2">
+                          {/* Raw / Preview Toggle */}
+                          <div className="flex bg-secondary border border-border rounded-md p-0.5">
+                            <button onClick={() => setShowRawCopy(false)} className={`flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-sm transition-colors ${!showRawCopy ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+                              <Eye className="w-3 h-3" /> Preview
+                            </button>
+                            <button onClick={() => setShowRawCopy(true)} className={`flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-sm transition-colors ${showRawCopy ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+                              <Code2 className="w-3 h-3" /> Raw
+                            </button>
+                          </div>
+                          <span className="text-[10px] text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">from Instantly</span>
+                        </div>
                       </div>
                       {!drawerData?.sequences?.length ? (
                         <div className="text-center py-16 text-muted-foreground"><Mail className="w-12 h-12 mx-auto mb-3 opacity-30" /><p className="font-medium">No sequence data available</p><p className="text-xs mt-1">This campaign might not have an active sequence.</p></div>
-                      ) : drawerData.sequences.map((step, i) => (
+                      ) : drawerData.sequences.map((step, i) => {
+                        const activeCount = step.variants.filter(v => v.is_active !== false).length;
+                        const disabledCount = step.variants.length - activeCount;
+                        return (
                         <div key={i} className="border border-border rounded-lg overflow-hidden">
                           <div className="px-4 py-2 bg-secondary/50 border-b border-border flex items-center justify-between">
-                            <span className="text-xs font-semibold text-foreground uppercase tracking-wider">Step {i + 1} {step.delay > 0 && <span className="text-muted-foreground font-normal ml-1">(Day {step.delay})</span>}</span>
-                            {step.variants.length > 1 && <span className="text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-medium">{step.variants.length} variants</span>}
-                          </div>
-                          {step.variants.map((variant, vi) => (
-                            <div key={vi} className={`px-4 py-3 ${vi > 0 ? 'border-t border-border/50' : ''}`}>
-                              {step.variants.length > 1 && <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-2">Variant {String.fromCharCode(65 + vi)}</p>}
-                              {variant.subject && <p className="text-xs mb-2"><span className="text-muted-foreground font-semibold mr-1">Subject:</span><span className="text-foreground font-medium">{variant.subject}</span></p>}
-                              <div className="text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed font-mono bg-secondary/30 rounded-md p-3 border border-border/50">{variant.body}</div>
+                            <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                              Step {i + 1} {step.delay > 0 && <span className="text-muted-foreground font-normal ml-1">(Day {step.delay})</span>}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              {step.variants.length > 1 && (
+                                <span className="text-[10px] text-primary bg-primary/10 px-2 py-0.5 rounded-full font-medium">
+                                  {activeCount} active{disabledCount > 0 && ` · ${disabledCount} off`}
+                                </span>
+                              )}
                             </div>
-                          ))}
+                          </div>
+                          {step.variants.map((variant, vi) => {
+                            const isActive = variant.is_active !== false;
+                            const copyId = `${i}-${vi}`;
+                            return (
+                            <div key={vi} className={`px-4 py-3 ${vi > 0 ? 'border-t border-border/50' : ''} ${!isActive ? 'opacity-50 bg-secondary/10' : ''}`}>
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  {step.variants.length > 1 && (
+                                    <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Variant {String.fromCharCode(65 + vi)}</span>
+                                  )}
+                                  {isActive ? (
+                                    <span className="text-[9px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-1.5 py-0.5 rounded-full uppercase tracking-wider">Active</span>
+                                  ) : (
+                                    <span className="text-[9px] font-bold bg-secondary text-muted-foreground border border-border px-1.5 py-0.5 rounded-full uppercase tracking-wider">Disabled</span>
+                                  )}
+                                </div>
+                                <button
+                                  onClick={() => copyToClipboard(variant.body, copyId)}
+                                  className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-secondary"
+                                  title="Copy to clipboard"
+                                >
+                                  {copiedIdx === copyId ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                                </button>
+                              </div>
+                              {variant.subject && (
+                                <p className="text-xs mb-2">
+                                  <span className="text-muted-foreground font-semibold mr-1">Subject:</span>
+                                  <span className="text-foreground font-medium">{variant.subject}</span>
+                                </p>
+                              )}
+                              {showRawCopy && variant.body_raw ? (
+                                <div className="text-xs text-foreground/70 whitespace-pre-wrap leading-relaxed font-mono bg-[#1a1a2e] rounded-md p-3 border border-border/50 overflow-x-auto">
+                                  <code>{variant.body_raw}</code>
+                                </div>
+                              ) : (
+                                <div className="text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed font-mono bg-secondary/30 rounded-md p-3 border border-border/50">
+                                  {variant.body}
+                                </div>
+                              )}
+                            </div>
+                            );
+                          })}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 
@@ -561,19 +645,51 @@ export default function CampaignsPage() {
                         <h4 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center"><MessageSquare className="w-4 h-4 mr-2 text-primary" />Lead Replies</h4>
                         <span className="text-[10px] text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">from Supabase</span>
                       </div>
+
+                      {/* Clickable Category Filter Bar */}
                       {drawerData?.reply_summary && drawerData.reply_summary.total > 0 && (
-                        <div className="flex items-center space-x-3 bg-secondary/30 rounded-lg px-4 py-2.5 border border-border flex-wrap gap-y-1">
-                          <span className="text-xs font-semibold text-foreground">{drawerData.reply_summary.total} replies</span>
-                          <span className="text-border">|</span>
-                          <span className="text-xs text-emerald-500 font-medium">🟢 {drawerData.reply_summary.positive}</span>
-                          <span className="text-xs text-amber-500 font-medium">🟡 {drawerData.reply_summary.mql}</span>
-                          <span className="text-xs text-red-500 font-medium">🔴 {drawerData.reply_summary.negative}</span>
-                          <span className="text-xs text-gray-400 font-medium">⚪ {drawerData.reply_summary.ooo}</span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button onClick={() => setReplyCategoryFilter("all")}
+                            className={`h-8 inline-flex items-center gap-1.5 px-3 text-xs font-semibold rounded-lg border transition-all ${replyCategoryFilter === "all" ? "bg-primary/10 border-primary/30 text-primary" : "bg-card border-border text-muted-foreground hover:text-foreground hover:border-foreground/20"}`}>
+                            All <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-secondary">{drawerData.reply_summary.total}</span>
+                          </button>
+                          {drawerData.reply_summary.positive > 0 && (
+                            <button onClick={() => setReplyCategoryFilter(replyCategoryFilter === "positive" ? "all" : "positive")}
+                              className={`h-8 inline-flex items-center gap-1.5 px-3 text-xs font-semibold rounded-lg border transition-all ${replyCategoryFilter === "positive" ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500 ring-1 ring-emerald-500/20" : "bg-card border-border text-muted-foreground hover:text-foreground hover:border-emerald-500/30"}`}>
+                              🟢 Positive <span className="text-[10px]">{drawerData.reply_summary.positive}</span>
+                            </button>
+                          )}
+                          {drawerData.reply_summary.mql > 0 && (
+                            <button onClick={() => setReplyCategoryFilter(replyCategoryFilter === "mql" ? "all" : "mql")}
+                              className={`h-8 inline-flex items-center gap-1.5 px-3 text-xs font-semibold rounded-lg border transition-all ${replyCategoryFilter === "mql" ? "bg-amber-500/10 border-amber-500/30 text-amber-500 ring-1 ring-amber-500/20" : "bg-card border-border text-muted-foreground hover:text-foreground hover:border-amber-500/30"}`}>
+                              🟡 MQL <span className="text-[10px]">{drawerData.reply_summary.mql}</span>
+                            </button>
+                          )}
+                          {drawerData.reply_summary.negative > 0 && (
+                            <button onClick={() => setReplyCategoryFilter(replyCategoryFilter === "negative" ? "all" : "negative")}
+                              className={`h-8 inline-flex items-center gap-1.5 px-3 text-xs font-semibold rounded-lg border transition-all ${replyCategoryFilter === "negative" ? "bg-red-500/10 border-red-500/30 text-red-500 ring-1 ring-red-500/20" : "bg-card border-border text-muted-foreground hover:text-foreground hover:border-red-500/30"}`}>
+                              🔴 Negative <span className="text-[10px]">{drawerData.reply_summary.negative}</span>
+                            </button>
+                          )}
+                          {(drawerData.reply_summary.ooo + (drawerData.reply_summary.bounced || 0)) > 0 && (
+                            <button onClick={() => setReplyCategoryFilter(replyCategoryFilter === "ooo" ? "all" : "ooo")}
+                              className={`h-8 inline-flex items-center gap-1.5 px-3 text-xs font-semibold rounded-lg border transition-all ${replyCategoryFilter === "ooo" ? "bg-gray-500/10 border-gray-500/30 text-gray-400 ring-1 ring-gray-500/20" : "bg-card border-border text-muted-foreground hover:text-foreground hover:border-gray-500/30"}`}>
+                              ⚪ OOO/Bounce <span className="text-[10px]">{drawerData.reply_summary.ooo + (drawerData.reply_summary.bounced || 0)}</span>
+                            </button>
+                          )}
                         </div>
                       )}
+
+                      {/* Results count when filtering */}
+                      {replyCategoryFilter !== "all" && (
+                        <p className="text-xs text-muted-foreground">Showing {filteredReplies.length} of {drawerData?.reply_summary?.total || 0} replies</p>
+                      )}
+
                       {!drawerData?.replies?.length ? (
                         <div className="text-center py-16 text-muted-foreground"><MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-30" /><p className="font-medium">No replies found</p><p className="text-xs mt-1">No lead replies matched this campaign.</p></div>
-                      ) : drawerData.replies.map((reply, i) => (
+                      ) : filteredReplies.length === 0 ? (
+                        <div className="text-center py-12 text-muted-foreground"><p className="font-medium">No {replyCategoryFilter} replies</p><button onClick={() => setReplyCategoryFilter("all")} className="text-xs text-primary hover:underline mt-1">Show all replies</button></div>
+                      ) : filteredReplies.map((reply, i) => (
                         <div key={i} className="border border-border rounded-lg overflow-hidden">
                           <div className="px-4 py-2.5 bg-secondary/30 border-b border-border flex items-center justify-between">
                             <div className="flex items-center space-x-2 min-w-0">
@@ -589,13 +705,23 @@ export default function CampaignsPage() {
                           <div className="p-4 space-y-3">
                             {reply.outreach_email && (
                               <div>
-                                <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-1">📤 What We Sent</p>
+                                <div className="flex items-center justify-between mb-1">
+                                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">📤 What We Sent</p>
+                                  <button onClick={() => copyToClipboard(reply.outreach_email, `oe-${i}`)} className="text-muted-foreground hover:text-foreground p-0.5" title="Copy">
+                                    {copiedIdx === `oe-${i}` ? <CheckCircle2 className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                                  </button>
+                                </div>
                                 <div className="text-xs text-foreground/60 whitespace-pre-wrap bg-secondary/20 rounded-md p-3 border border-border/30 max-h-32 overflow-y-auto leading-relaxed">{reply.outreach_email.slice(0, 600)}{reply.outreach_email.length > 600 && '...'}</div>
                               </div>
                             )}
                             {reply.lead_reply && (
                               <div>
-                                <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-1">💬 Their Reply</p>
+                                <div className="flex items-center justify-between mb-1">
+                                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">💬 Their Reply</p>
+                                  <button onClick={() => copyToClipboard(reply.lead_reply, `lr-${i}`)} className="text-muted-foreground hover:text-foreground p-0.5" title="Copy">
+                                    {copiedIdx === `lr-${i}` ? <CheckCircle2 className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                                  </button>
+                                </div>
                                 <div className="text-sm text-foreground whitespace-pre-wrap bg-primary/5 rounded-md p-3 border border-primary/10 leading-relaxed">{reply.lead_reply}</div>
                               </div>
                             )}
