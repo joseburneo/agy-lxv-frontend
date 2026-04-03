@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { AlertCircle, Search, Edit2, Loader2, RefreshCw, X, Check, Sparkles, ChevronUp, ChevronDown, Mail, MessageSquare, Zap, ArrowUpDown, ChevronRight, Filter, Users, Eye, Code2, Copy, CheckCircle2 } from "lucide-react";
+import { AlertCircle, Search, Edit2, Loader2, RefreshCw, X, Check, Sparkles, ChevronUp, ChevronDown, Mail, MessageSquare, Zap, ArrowUpDown, ChevronRight, Filter, Users, Eye, Code2, Copy, CheckCircle2, ShieldAlert, Pencil, Save, RotateCcw } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "@/lib/supabase";
 
@@ -77,7 +77,11 @@ function ReplyCategoryBadge({ category }: { category: string }) {
 interface CampaignItem { id: string; name: string; client: string; sent: number; open: string; reply: string; opportunities: number; replies: number; copyErrors: string[]; isCompliant: boolean; status: string; }
 interface ReplyItem { category: string; first_name: string; last_name: string; email: string; job_title: string; company_name: string; outreach_email: string; lead_reply: string; reply_date: string; campaign_name: string; }
 interface SequenceStep { step: number; delay: number; variants: { subject: string; body: string; body_raw?: string; is_active?: boolean }[]; }
-interface CampaignDetail { sequences: SequenceStep[]; replies: ReplyItem[]; reply_summary: { total: number; positive: number; mql: number; negative: number; ooo: number; bounced: number; other: number }; }
+interface CopyIssue { severity: string; type: string; message: string; variable?: string; }
+interface CopyAuditVariant { variant: string; is_active: boolean; issues: CopyIssue[]; issue_count: number; }
+interface CopyAuditStep { step: number; delay: number; variants: CopyAuditVariant[]; }
+interface CopyAudit { total_issues: number; critical: number; warnings: number; info: number; steps: CopyAuditStep[]; }
+interface CampaignDetail { sequences: SequenceStep[]; replies: ReplyItem[]; reply_summary: { total: number; positive: number; mql: number; negative: number; ooo: number; bounced: number; other: number }; copy_audit?: CopyAudit | null; }
 type ReplyCategoryFilter = "all" | "positive" | "mql" | "negative" | "ooo" | "other";
 
 type SortKey = "tier" | "sent" | "reply" | "name";
@@ -116,6 +120,13 @@ export default function CampaignsPage() {
   const [showRawCopy, setShowRawCopy] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<string | null>(null);
 
+  // Copy editing state
+  const [editingVariant, setEditingVariant] = useState<string | null>(null); // "stepIdx-varIdx"
+  const [editSubject, setEditSubject] = useState("");
+  const [editBody, setEditBody] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editResult, setEditResult] = useState<{ success: boolean; message: string } | null>(null);
+
   // Filtered replies based on selected category
   const filteredReplies = useMemo(() => {
     if (!drawerData?.replies) return [];
@@ -134,6 +145,45 @@ export default function CampaignsPage() {
     navigator.clipboard.writeText(text);
     setCopiedIdx(id);
     setTimeout(() => setCopiedIdx(null), 2000);
+  };
+
+  const startEditing = (stepIdx: number, varIdx: number, subject: string, body: string) => {
+    setEditingVariant(`${stepIdx}-${varIdx}`);
+    setEditSubject(subject);
+    setEditBody(body);
+    setEditResult(null);
+  };
+
+  const cancelEditing = () => { setEditingVariant(null); setEditResult(null); };
+
+  const saveVariant = async (stepIdx: number, varIdx: number) => {
+    if (!drawerCampaign) return;
+    setEditSaving(true);
+    setEditResult(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/campaigns/update-variant`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          campaign_id: drawerCampaign.id,
+          client_name: drawerCampaign.client,
+          step_index: stepIdx,
+          variant_index: varIdx,
+          new_subject: editSubject,
+          new_body: editBody,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEditResult({ success: true, message: "✅ Copy updated in Instantly!" });
+        // Refresh drawer data
+        setTimeout(() => { setEditingVariant(null); openDrawer(drawerCampaign); }, 1500);
+      } else {
+        setEditResult({ success: false, message: data.message || "Failed to update" });
+      }
+    } catch (err: any) {
+      setEditResult({ success: false, message: `❌ Error: ${err.message}` });
+    } finally { setEditSaving(false); }
   };
 
   const namingPreview = useMemo(() => {
@@ -559,7 +609,6 @@ export default function CampaignsPage() {
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center"><Mail className="w-4 h-4 mr-2 text-primary" />Live Email Sequence</h4>
                         <div className="flex items-center gap-2">
-                          {/* Raw / Preview Toggle */}
                           <div className="flex bg-secondary border border-border rounded-md p-0.5">
                             <button onClick={() => setShowRawCopy(false)} className={`flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-sm transition-colors ${!showRawCopy ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
                               <Eye className="w-3 h-3" /> Preview
@@ -571,11 +620,37 @@ export default function CampaignsPage() {
                           <span className="text-[10px] text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">from Instantly</span>
                         </div>
                       </div>
+
+                      {/* Copy QA Audit Summary */}
+                      {drawerData?.copy_audit && drawerData.copy_audit.total_issues > 0 && (
+                        <div className={`flex items-center gap-3 rounded-lg px-4 py-2.5 border ${
+                          drawerData.copy_audit.critical > 0
+                            ? "bg-red-500/5 border-red-500/20"
+                            : drawerData.copy_audit.warnings > 0
+                            ? "bg-amber-500/5 border-amber-500/20"
+                            : "bg-blue-500/5 border-blue-500/20"
+                        }`}>
+                          <ShieldAlert className={`w-4 h-4 shrink-0 ${drawerData.copy_audit.critical > 0 ? "text-red-500" : "text-amber-500"}`} />
+                          <span className="text-xs font-semibold text-foreground">Copy QA:</span>
+                          {drawerData.copy_audit.critical > 0 && <span className="text-xs text-red-500 font-semibold">{drawerData.copy_audit.critical} critical</span>}
+                          {drawerData.copy_audit.warnings > 0 && <span className="text-xs text-amber-500 font-medium">{drawerData.copy_audit.warnings} warnings</span>}
+                          {drawerData.copy_audit.info > 0 && <span className="text-xs text-muted-foreground">{drawerData.copy_audit.info} info</span>}
+                        </div>
+                      )}
+                      {drawerData?.copy_audit && drawerData.copy_audit.total_issues === 0 && (
+                        <div className="flex items-center gap-2 rounded-lg px-4 py-2 border border-emerald-500/20 bg-emerald-500/5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                          <span className="text-xs font-semibold text-emerald-500">Copy QA: All checks passed — no issues found</span>
+                        </div>
+                      )}
+
                       {!drawerData?.sequences?.length ? (
                         <div className="text-center py-16 text-muted-foreground"><Mail className="w-12 h-12 mx-auto mb-3 opacity-30" /><p className="font-medium">No sequence data available</p><p className="text-xs mt-1">This campaign might not have an active sequence.</p></div>
                       ) : drawerData.sequences.map((step, i) => {
                         const activeCount = step.variants.filter(v => v.is_active !== false).length;
                         const disabledCount = step.variants.length - activeCount;
+                        const auditStep = drawerData.copy_audit?.steps?.[i];
+
                         return (
                         <div key={i} className="border border-border rounded-lg overflow-hidden">
                           <div className="px-4 py-2 bg-secondary/50 border-b border-border flex items-center justify-between">
@@ -593,6 +668,12 @@ export default function CampaignsPage() {
                           {step.variants.map((variant, vi) => {
                             const isActive = variant.is_active !== false;
                             const copyId = `${i}-${vi}`;
+                            const isEditing = editingVariant === copyId;
+                            const auditVariant = auditStep?.variants?.[vi];
+                            const issues = auditVariant?.issues || [];
+                            const criticalIssues = issues.filter(iss => iss.severity === "critical");
+                            const warningIssues = issues.filter(iss => iss.severity === "warning");
+
                             return (
                             <div key={vi} className={`px-4 py-3 ${vi > 0 ? 'border-t border-border/50' : ''} ${!isActive ? 'opacity-50 bg-secondary/10' : ''}`}>
                               <div className="flex items-center justify-between mb-2">
@@ -605,29 +686,112 @@ export default function CampaignsPage() {
                                   ) : (
                                     <span className="text-[9px] font-bold bg-secondary text-muted-foreground border border-border px-1.5 py-0.5 rounded-full uppercase tracking-wider">Disabled</span>
                                   )}
+                                  {issues.length > 0 && (
+                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider border ${
+                                      criticalIssues.length > 0
+                                        ? "bg-red-500/10 text-red-500 border-red-500/20"
+                                        : "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                                    }`}>
+                                      {issues.length} {issues.length === 1 ? 'issue' : 'issues'}
+                                    </span>
+                                  )}
                                 </div>
-                                <button
-                                  onClick={() => copyToClipboard(variant.body, copyId)}
-                                  className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-secondary"
-                                  title="Copy to clipboard"
-                                >
-                                  {copiedIdx === copyId ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                                </button>
+                                <div className="flex items-center gap-1">
+                                  {!isEditing ? (
+                                    <>
+                                      <button
+                                        onClick={() => startEditing(i, vi, variant.subject, variant.body_raw || variant.body)}
+                                        className="text-muted-foreground hover:text-primary transition-colors p-1 rounded-md hover:bg-primary/10"
+                                        title="Edit variant"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => copyToClipboard(variant.body, copyId)}
+                                        className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-secondary"
+                                        title="Copy to clipboard"
+                                      >
+                                        {copiedIdx === copyId ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button onClick={cancelEditing} className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-secondary" title="Cancel">
+                                        <RotateCcw className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => saveVariant(i, vi)}
+                                        disabled={editSaving}
+                                        className="text-emerald-500 hover:text-emerald-400 transition-colors p-1 rounded-md hover:bg-emerald-500/10 disabled:opacity-50"
+                                        title="Save to Instantly"
+                                      >
+                                        {editSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
                               </div>
-                              {variant.subject && (
-                                <p className="text-xs mb-2">
-                                  <span className="text-muted-foreground font-semibold mr-1">Subject:</span>
-                                  <span className="text-foreground font-medium">{variant.subject}</span>
-                                </p>
+
+                              {/* Issue Warnings */}
+                              {issues.length > 0 && !isEditing && (
+                                <div className="space-y-1 mb-3">
+                                  {criticalIssues.map((issue, ii) => (
+                                    <div key={`c-${ii}`} className="flex items-start gap-2 text-[11px] text-red-500 bg-red-500/5 rounded-md px-2.5 py-1.5 border border-red-500/10">
+                                      <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" />
+                                      <span>{issue.message}</span>
+                                    </div>
+                                  ))}
+                                  {warningIssues.map((issue, ii) => (
+                                    <div key={`w-${ii}`} className="flex items-start gap-2 text-[11px] text-amber-500 bg-amber-500/5 rounded-md px-2.5 py-1.5 border border-amber-500/10">
+                                      <AlertCircle className="w-3 h-3 mt-0.5 shrink-0" />
+                                      <span>{issue.message}</span>
+                                    </div>
+                                  ))}
+                                </div>
                               )}
-                              {showRawCopy && variant.body_raw ? (
-                                <div className="text-xs text-foreground/70 whitespace-pre-wrap leading-relaxed font-mono bg-[#1a1a2e] rounded-md p-3 border border-border/50 overflow-x-auto">
-                                  <code>{variant.body_raw}</code>
+
+                              {/* Edit Mode */}
+                              {isEditing ? (
+                                <div className="space-y-3">
+                                  <div>
+                                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Subject</label>
+                                    <input
+                                      type="text" value={editSubject} onChange={e => setEditSubject(e.target.value)}
+                                      className="mt-1 w-full rounded-md border border-primary/30 bg-background px-3 py-2 text-sm text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Body (Raw HTML)</label>
+                                    <textarea
+                                      value={editBody} onChange={e => setEditBody(e.target.value)}
+                                      rows={12}
+                                      className="mt-1 w-full rounded-md border border-primary/30 bg-[#1a1a2e] px-3 py-2 text-xs text-foreground/80 font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary transition-all resize-y"
+                                    />
+                                  </div>
+                                  {editResult && (
+                                    <div className={`text-xs px-3 py-2 rounded-md border ${editResult.success ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" : "bg-destructive/10 border-destructive/20 text-destructive"}`}>
+                                      {editResult.message}
+                                    </div>
+                                  )}
                                 </div>
                               ) : (
-                                <div className="text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed font-mono bg-secondary/30 rounded-md p-3 border border-border/50">
-                                  {variant.body}
-                                </div>
+                                <>
+                                  {variant.subject && (
+                                    <p className="text-xs mb-2">
+                                      <span className="text-muted-foreground font-semibold mr-1">Subject:</span>
+                                      <span className="text-foreground font-medium">{variant.subject}</span>
+                                    </p>
+                                  )}
+                                  {showRawCopy && variant.body_raw ? (
+                                    <div className="text-xs text-foreground/70 whitespace-pre-wrap leading-relaxed font-mono bg-[#1a1a2e] rounded-md p-3 border border-border/50 overflow-x-auto">
+                                      <code>{variant.body_raw}</code>
+                                    </div>
+                                  ) : (
+                                    <div className="text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed font-mono bg-secondary/30 rounded-md p-3 border border-border/50">
+                                      {variant.body}
+                                    </div>
+                                  )}
+                                </>
                               )}
                             </div>
                             );
