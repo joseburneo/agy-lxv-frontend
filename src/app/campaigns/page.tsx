@@ -1,9 +1,64 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { AlertCircle, CheckCircle2, Search, Edit2, Loader2, RefreshCw, X, HelpCircle } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { AlertCircle, CheckCircle2, Search, Edit2, Loader2, RefreshCw, X, HelpCircle, Check, Sparkles } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "@/lib/supabase";
+
+const API_BASE = "https://agency-os-api.onrender.com";
+
+// ---- Smart Name Parser ----
+function parseCurrentName(name: string, clientName: string) {
+  // Remove client prefix to work with the rest
+  let rest = name;
+  if (rest.toLowerCase().startsWith(clientName.toLowerCase())) {
+    rest = rest.slice(clientName.length).replace(/^\s*[–\-]\s*/, "");
+  }
+
+  const parts = rest.split(/\s*[–\-]\s*/).map(s => s.trim()).filter(Boolean);
+
+  // Detect week pattern W## anywhere
+  let week = "";
+  const weekIdx = parts.findIndex(p => /^W\d+$/i.test(p.trim()));
+  if (weekIdx !== -1) {
+    week = parts.splice(weekIdx, 1)[0].trim();
+  }
+
+  // Known location tokens for heuristic detection
+  const locationTokens = [
+    "uk", "usa", "uae", "europe", "germany", "kenya", "belgium", "france",
+    "spain", "italy", "netherlands", "canada", "australia", "india", "singapore",
+    "saudi arabia", "ksa", "qatar", "oman", "bahrain", "kuwait", "jordan",
+    "south africa", "nigeria", "egypt", "mexico", "brazil", "mena", "gcc",
+    "apac", "latam", "emea", "nordics", "dach"
+  ];
+
+  let persona = "";
+  let location = "";
+  let offer = "";
+
+  // Try to detect location from parts
+  const locIdx = parts.findIndex(p => locationTokens.includes(p.toLowerCase()));
+  if (locIdx !== -1) {
+    location = parts.splice(locIdx, 1)[0];
+  }
+
+  // Distribute remaining parts
+  if (parts.length >= 2) {
+    persona = parts[0];
+    offer = parts.slice(1).join(" – ");
+  } else if (parts.length === 1) {
+    // Could be persona or offer — put in offer for safety
+    offer = parts[0];
+  }
+
+  return { persona, location, offer, week };
+}
+
+function buildPreviewName(client: string, persona: string, location: string, offer: string, week: string) {
+  const segments = [client, persona, location, offer, week].filter(Boolean);
+  return segments.join(" – ");
+}
 
 interface CampaignItem {
   id: string;
@@ -24,16 +79,74 @@ export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<CampaignItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Copilot Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [optimizingId, setOptimizingId] = useState<string | null>(null);
   const [optimizationResult, setOptimizationResult] = useState<string | null>(null);
+
+  // Fix Naming Modal
+  const [isNamingModalOpen, setIsNamingModalOpen] = useState(false);
+  const [namingCampaign, setNamingCampaign] = useState<CampaignItem | null>(null);
+  const [namingFields, setNamingFields] = useState({ persona: "", location: "", offer: "", week: "" });
+  const [namingLoading, setNamingLoading] = useState(false);
+  const [namingResult, setNamingResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const namingPreview = useMemo(() => {
+    if (!namingCampaign) return "";
+    return buildPreviewName(namingCampaign.client, namingFields.persona, namingFields.location, namingFields.offer, namingFields.week);
+  }, [namingCampaign, namingFields]);
+
+  const openNamingModal = (campaign: CampaignItem) => {
+    const parsed = parseCurrentName(campaign.name, campaign.client);
+    setNamingFields(parsed);
+    setNamingCampaign(campaign);
+    setNamingResult(null);
+    setIsNamingModalOpen(true);
+  };
+
+  const handleFixNaming = async () => {
+    if (!namingCampaign || !namingPreview) return;
+    setNamingLoading(true);
+    setNamingResult(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/campaigns/fix-naming`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          campaign_id: namingCampaign.id,
+          new_name: namingPreview,
+          client_name: namingCampaign.client,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNamingResult({ success: true, message: "✅ Campaign renamed across Instantly, Supabase & Notion!" });
+        // Auto-refresh campaigns after 1.5s
+        setTimeout(() => {
+          setIsNamingModalOpen(false);
+          fetchCampaigns();
+        }, 1500);
+      } else {
+        const errors = [
+          !data.instantly?.success && `Instantly: ${data.instantly?.error}`,
+          !data.supabase?.success && `Supabase: ${data.supabase?.error}`,
+          !data.notion?.success && `Notion: ${data.notion?.error}`,
+        ].filter(Boolean).join(" | ");
+        setNamingResult({ success: false, message: `⚠️ Partial failure: ${errors}` });
+      }
+    } catch (err: any) {
+      setNamingResult({ success: false, message: `❌ Network error: ${err.message}` });
+    } finally {
+      setNamingLoading(false);
+    }
+  };
 
   const handleOptimize = async (campaign: CampaignItem) => {
     setOptimizingId(campaign.id);
     setOptimizationResult(null);
     setIsModalOpen(true);
     try {
-      const res = await fetch("https://agency-os-api.onrender.com/api/copilot/optimize", {
+      const res = await fetch(`${API_BASE}/api/copilot/optimize`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -302,7 +415,10 @@ export default function CampaignsPage() {
                       ✨ Optimize
                     </button>
                     {!campaign.isCompliant ? (
-                      <button className="inline-flex items-center text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:bg-primary/90 transition-colors font-medium">
+                      <button 
+                        onClick={() => openNamingModal(campaign)}
+                        className="inline-flex items-center text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:bg-primary/90 transition-colors font-medium cursor-pointer"
+                      >
                         <Edit2 className="w-3 h-3 mr-1.5" />
                         Fix Naming
                       </button>
@@ -356,6 +472,137 @@ export default function CampaignsPage() {
                 className="px-4 py-2 bg-secondary text-foreground rounded-md hover:bg-secondary/80 outline-none focus:ring-2 focus:ring-primary border border-border transition-all text-sm font-medium"
               >
                 Close Copilot
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fix Naming Modal */}
+      {isNamingModalOpen && namingCampaign && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-card w-full max-w-xl rounded-xl border border-border shadow-2xl flex flex-col overflow-hidden animate-in fade-in-0 zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-secondary/30">
+              <h3 className="font-semibold text-lg flex items-center text-foreground">
+                <Edit2 className="w-5 h-5 mr-2 text-primary" />
+                Fix Campaign Naming
+              </h3>
+              <button onClick={() => setIsNamingModalOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-md hover:bg-secondary">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Current name (strikethrough) */}
+              <div>
+                <label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Current Name</label>
+                <p className="mt-1 text-sm text-destructive line-through opacity-70 font-mono bg-destructive/5 px-3 py-2 rounded-md border border-destructive/10">
+                  {namingCampaign.name}
+                </p>
+              </div>
+
+              {/* Editable Fields */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Client (readonly) */}
+                <div>
+                  <label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Client</label>
+                  <input
+                    type="text"
+                    value={namingCampaign.client}
+                    readOnly
+                    className="mt-1 w-full rounded-md border border-border bg-secondary/50 px-3 py-2 text-sm text-muted-foreground cursor-not-allowed"
+                  />
+                </div>
+                {/* Persona */}
+                <div>
+                  <label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Persona</label>
+                  <input
+                    type="text"
+                    value={namingFields.persona}
+                    onChange={e => setNamingFields(f => ({ ...f, persona: e.target.value }))}
+                    placeholder="e.g. F&B Executives"
+                    className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                  />
+                </div>
+                {/* Location */}
+                <div>
+                  <label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Location</label>
+                  <input
+                    type="text"
+                    value={namingFields.location}
+                    onChange={e => setNamingFields(f => ({ ...f, location: e.target.value }))}
+                    placeholder="e.g. UK, UAE, Europe"
+                    className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                  />
+                </div>
+                {/* Offer/Segment */}
+                <div>
+                  <label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Offer / Segment</label>
+                  <input
+                    type="text"
+                    value={namingFields.offer}
+                    onChange={e => setNamingFields(f => ({ ...f, offer: e.target.value }))}
+                    placeholder="e.g. Virtual Brand Hosting"
+                    className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                  />
+                </div>
+                {/* Week */}
+                <div>
+                  <label className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Week</label>
+                  <input
+                    type="text"
+                    value={namingFields.week}
+                    onChange={e => setNamingFields(f => ({ ...f, week: e.target.value }))}
+                    placeholder="e.g. W14"
+                    className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Live Preview */}
+              <div className="bg-primary/5 border border-primary/20 rounded-lg px-4 py-3">
+                <label className="text-xs text-primary uppercase tracking-wider font-semibold flex items-center">
+                  <Sparkles className="w-3 h-3 mr-1.5" />
+                  Preview
+                </label>
+                <p className="mt-1.5 text-sm font-semibold text-foreground font-mono">
+                  {namingPreview || <span className="text-muted-foreground italic">Fill in the fields above...</span>}
+                </p>
+              </div>
+
+              {/* Result Feedback */}
+              {namingResult && (
+                <div className={`text-sm px-4 py-3 rounded-lg border ${
+                  namingResult.success 
+                    ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" 
+                    : "bg-destructive/10 border-destructive/20 text-destructive"
+                }`}>
+                  {namingResult.message}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-border bg-secondary/30 flex items-center justify-between">
+              <button
+                onClick={() => setIsNamingModalOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleFixNaming}
+                disabled={namingLoading || !namingPreview || namingResult?.success}
+                className="inline-flex items-center px-5 py-2.5 text-sm font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+              >
+                {namingLoading ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Renaming...</>
+                ) : namingResult?.success ? (
+                  <><Check className="w-4 h-4 mr-2" /> Done!</>
+                ) : (
+                  <><Check className="w-4 h-4 mr-2" /> Apply Fix (Instantly + Supabase + Notion)</>
+                )}
               </button>
             </div>
           </div>
