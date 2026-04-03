@@ -12,11 +12,14 @@ interface CampaignItem {
   sent: number;
   open: string;
   reply: string;
+  opportunities: number;
+  copyErrors: string[];
   isCompliant: boolean;
+  status: string;
 }
 
 export default function CampaignsPage() {
-  const [filter, setFilter] = useState<"all" | "violations">("all");
+  const [filter, setFilter] = useState<"all" | "violations" | "active" | "paused" | "completed">("active");
   const [campaigns, setCampaigns] = useState<CampaignItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -61,7 +64,10 @@ export default function CampaignsPage() {
         emails_sent,
         open_rate,
         reply_rate,
+        opportunities,
+        copy_errors,
         is_compliant,
+        status,
         clients(name)
       `)
       .order('is_compliant', { ascending: true }) // Show violations first
@@ -77,7 +83,10 @@ export default function CampaignsPage() {
         sent: c.emails_sent,
         open: c.open_rate,
         reply: c.reply_rate,
-        isCompliant: c.is_compliant
+        opportunities: c.opportunities || 0,
+        copyErrors: Array.isArray(c.copy_errors) ? c.copy_errors : [],
+        isCompliant: c.is_compliant,
+        status: c.status || 'Active'
       }));
       setCampaigns(mapped);
     }
@@ -88,14 +97,21 @@ export default function CampaignsPage() {
     fetchCampaigns();
   }, []);
 
-  const filtered = campaigns.filter(c => filter === "all" ? true : !c.isCompliant);
+  const filtered = campaigns.filter(c => {
+    if (filter === "all") return true;
+    if (filter === "violations") return !c.isCompliant;
+    if (filter === "active") return c.status.toLowerCase() === "active";
+    if (filter === "paused") return c.status.toLowerCase() === "paused";
+    if (filter === "completed") return c.status.toLowerCase() === "completed";
+    return true;
+  });
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto h-full flex flex-col">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Active Campaigns</h2>
-          <p className="text-muted-foreground mt-1 text-sm">Monitor campaign velocity and adhere to the Agency OS naming conventions.</p>
+          <h2 className="text-2xl font-bold tracking-tight">Campaign Monitor</h2>
+          <p className="text-muted-foreground mt-1 text-sm">Monitor campaign velocity, reply performance, and adhere to the Agency OS naming conventions.</p>
         </div>
         <div className="flex space-x-2">
           <button 
@@ -105,15 +121,31 @@ export default function CampaignsPage() {
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
-          <button 
-            onClick={() => setFilter("all")}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${filter === "all" ? "bg-primary text-primary-foreground" : "bg-card border border-border text-foreground hover:bg-secondary"}`}
-          >
-            All ({campaigns.length})
-          </button>
+          
+          <div className="flex bg-card border border-border rounded-md p-1">
+            <button 
+              onClick={() => setFilter("active")}
+              className={`px-4 py-1.5 text-sm font-medium rounded-sm transition-colors ${filter === "active" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
+            >
+              Active
+            </button>
+            <button 
+              onClick={() => setFilter("paused")}
+              className={`px-4 py-1.5 text-sm font-medium rounded-sm transition-colors ${filter === "paused" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
+            >
+              Paused
+            </button>
+            <button 
+              onClick={() => setFilter("all")}
+              className={`px-4 py-1.5 text-sm font-medium rounded-sm transition-colors ${filter === "all" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
+            >
+              All
+            </button>
+          </div>
+
           <button 
             onClick={() => setFilter("violations")}
-            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center ${filter === "violations" ? "bg-destructive text-destructive-foreground" : "bg-card border border-border text-foreground hover:bg-secondary"}`}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors flex items-center ${filter === "violations" ? "bg-destructive text-destructive-foreground shadow-sm" : "bg-card border border-border text-foreground hover:bg-secondary"}`}
           >
             <AlertCircle className="w-4 h-4 mr-2" />
             Violations ({campaigns.filter(c => !c.isCompliant).length})
@@ -145,32 +177,90 @@ export default function CampaignsPage() {
                 <th className="px-4 py-3">Sent</th>
                 <th className="px-4 py-3">Open Rate</th>
                 <th className="px-4 py-3">Reply Rate</th>
+                <th className="px-4 py-3">Tier</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border bg-card">
-              {filtered.map(campaign => (
-                <tr key={campaign.id} className="hover:bg-secondary/30 transition-colors">
-                  <td className="px-4 py-4">
-                    {campaign.isCompliant ? (
-                       <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    ) : (
-                       <AlertCircle className="w-4 h-4 text-destructive" />
-                    )}
-                  </td>
-                  <td className={`px-4 py-4 font-medium ${!campaign.isCompliant ? 'text-destructive' : 'text-foreground'}`}>
-                    {campaign.name}
-                    {!campaign.isCompliant && (
-                      <p className="text-xs text-muted-foreground font-normal mt-1 border border-destructive/30 bg-destructive/10 inline-block px-2 py-0.5 rounded text-destructive-foreground/80">
-                        Standard: [Client] – [Persona] – [Location] – [Offer/Segment] – W[##]
-                      </p>
-                    )}
-                  </td>
-                  <td className="px-4 py-4 text-muted-foreground">{campaign.client}</td>
-                  <td className="px-4 py-4">{campaign.sent.toLocaleString()}</td>
-                  <td className="px-4 py-4">{campaign.open}</td>
-                  <td className="px-4 py-4">{campaign.reply}</td>
-                  <td className="px-4 py-4 text-right space-x-2">
+              {filtered.map(campaign => {
+                const replyRateFloat = parseFloat(campaign.reply);
+                const isReplyLow = !isNaN(replyRateFloat) && replyRateFloat < 0.5 && campaign.sent > 100;
+                
+                // Tier Logic
+                let tier = { label: "Evaluating", colBg: "bg-secondary", textCol: "text-muted-foreground", emoji: "⏳" };
+                if (campaign.opportunities > 0) {
+                  const sentPerOpp = campaign.sent / campaign.opportunities;
+                  if (sentPerOpp <= 300) tier = { label: "Excellent", colBg: "bg-emerald-500/10", textCol: "text-emerald-500", emoji: "🤩" };
+                  else if (sentPerOpp <= 600) tier = { label: "Good", colBg: "bg-blue-500/10", textCol: "text-blue-500", emoji: "🙂" };
+                  else if (sentPerOpp <= 1000) tier = { label: "Average", colBg: "bg-amber-500/10", textCol: "text-amber-500", emoji: "😐" };
+                  else tier = { label: "Below Average", colBg: "bg-destructive/10", textCol: "text-destructive", emoji: "📉" };
+                } else if (campaign.sent > 600) {
+                  tier = { label: "Below Average", colBg: "bg-destructive/10", textCol: "text-destructive", emoji: "📉" };
+                }
+                
+                // Positivity Logic (Opportunities / Total Replied)
+                // Roughly infer total replied by multiplying reply rate * emails sent
+                const repliedCountApprox = Math.floor(campaign.sent * (replyRateFloat / 100));
+                let posRate = 0;
+                if (repliedCountApprox > 0) posRate = (campaign.opportunities / repliedCountApprox) * 100;
+                
+                return (
+                  <tr key={campaign.id} className="hover:bg-secondary/30 transition-colors">
+                    <td className="px-4 py-4">
+                      {campaign.isCompliant ? (
+                         <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                      ) : (
+                         <AlertCircle className="w-4 h-4 text-destructive" />
+                      )}
+                    </td>
+                    <td className={`px-4 py-4 font-medium ${!campaign.isCompliant ? 'text-destructive' : 'text-foreground'}`}>
+                      <div className="flex items-center space-x-2">
+                        <span>{campaign.name}</span>
+                        {campaign.copyErrors.length > 0 && (
+                          <div 
+                            title={campaign.copyErrors.join('\n')}
+                            className="bg-destructive/10 text-destructive p-1 rounded-full cursor-help hover:bg-destructive/20 transition-colors"
+                          >
+                            <AlertCircle className="w-4 h-4" />
+                          </div>
+                        )}
+                        {campaign.status !== 'Active' && (
+                          <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded-full uppercase tracking-wider">{campaign.status}</span>
+                        )}
+                      </div>
+                      {!campaign.isCompliant && (
+                        <p className="text-xs text-muted-foreground font-normal mt-1 border border-destructive/30 bg-destructive/10 inline-block px-2 py-0.5 rounded text-destructive-foreground/80">
+                          Standard: [Client] – [Persona] – [Location] – [Offer/Segment] – W[##]
+                        </p>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 text-muted-foreground">{campaign.client}</td>
+                    <td className="px-4 py-4">{campaign.sent.toLocaleString()}</td>
+                    <td className="px-4 py-4">{campaign.open}</td>
+                    <td className={`px-4 py-4 ${isReplyLow ? 'text-destructive font-semibold' : ''}`}>
+                      <div className="flex items-center space-x-2">
+                        <span>{campaign.reply}</span>
+                        {isReplyLow && (
+                          <div title="Reply rate below 0.5%!">
+                            <AlertCircle className="w-3.5 h-3.5 text-destructive" />
+                          </div>
+                        )}
+                      </div>
+                      {campaign.opportunities > 0 && (
+                        <p className="text-xs text-muted-foreground mt-1 tracking-tight" title={`${campaign.opportunities} opportunities / ~${repliedCountApprox} replies`}>
+                          {posRate.toFixed(1)}% Positivity Rate
+                        </p>
+                      )}
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className={`inline-flex items-center space-x-1.5 px-2.5 py-1 text-xs font-semibold rounded-md border ${tier.colBg.replace('/10', '/20')} ${tier.colBg} ${tier.textCol}`}>
+                        <span>{tier.label}</span> <span>{tier.emoji}</span>
+                      </span>
+                      {campaign.opportunities > 0 && (
+                        <p className="text-[10px] text-muted-foreground mt-1 font-medium">1 per {Math.round(campaign.sent / campaign.opportunities)} sent</p>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 text-right space-x-2">
                     <button 
                       onClick={() => handleOptimize(campaign)}
                       className="inline-flex items-center text-xs bg-amber-500/10 text-amber-500 border border-amber-500/20 px-3 py-1.5 rounded-md hover:bg-amber-500/20 transition-colors font-medium cursor-pointer"
@@ -187,7 +277,8 @@ export default function CampaignsPage() {
                     )}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {filtered.length === 0 && !loading && (
                 <tr>
                   <td colSpan={7} className="text-center py-12 text-muted-foreground">
