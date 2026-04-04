@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { AlertCircle, Search, Edit2, Loader2, RefreshCw, X, Check, Sparkles, ChevronUp, ChevronDown, Mail, MessageSquare, Zap, ArrowUpDown, ChevronRight, Filter, Users, Eye, Code2, Copy, CheckCircle2, ShieldAlert, Pencil, Save, RotateCcw } from "lucide-react";
+import { AlertCircle, Search, Edit2, Loader2, RefreshCw, X, Check, Sparkles, ChevronUp, ChevronDown, Mail, MessageSquare, Zap, ArrowUpDown, ChevronRight, Filter, Users, Eye, Code2, Copy, CheckCircle2, ShieldAlert, ShieldCheck, Pencil, Save, RotateCcw } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "@/lib/supabase";
 
@@ -420,7 +420,7 @@ export default function CampaignsPage() {
               </button>
             ) : null;
           })()}
-          {/* Copy QA Badge */}
+          {/* Copy QA — Unified Smart Button */}
           {(() => {
             const issueCount = Array.from(copyQACache.entries()).filter(([id, audit]) => {
               const camp = campaigns.find(c => c.id === id);
@@ -431,33 +431,48 @@ export default function CampaignsPage() {
               return camp && camp.status.toLowerCase() === 'active';
             }).length;
             const totalActive = campaigns.filter(c => c.status.toLowerCase() === 'active').length;
-            return (
-              <div className="flex items-center gap-1">
-                <button onClick={() => { if (issueCount > 0) setStatusFilter(statusFilter === "copyQA" ? "active" : "copyQA"); }} className={`px-3 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-1.5 ${statusFilter === "copyQA" ? "bg-amber-500 text-white shadow-sm ring-2 ring-amber-500/30" : issueCount > 0 ? "bg-card border border-border text-foreground hover:bg-amber-500/10 hover:border-amber-500/30" : "bg-card border border-border text-muted-foreground"}`}>
-                  <ShieldAlert className="w-4 h-4" />
-                  <span>Copy QA</span>
-                  {issueCount > 0 ? (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${statusFilter === "copyQA" ? "bg-white/20" : "bg-amber-500/10 text-amber-500"}`}>{issueCount}</span>
-                  ) : scannedCount > 0 ? (
-                    <span className="text-[10px] text-muted-foreground">✓</span>
-                  ) : null}
-                  {scannedCount < totalActive && <span className="text-[9px] text-muted-foreground ml-0.5">{scannedCount}/{totalActive}</span>}
-                </button>
-                {!copyQAScanning ? (
-                  <button onClick={scanActiveCopyQA} className="px-3 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-1.5 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 hover:border-primary/50 hover:shadow-md hover:shadow-primary/10">
-                    <Search className="w-3.5 h-3.5" />
-                    <span>Scan Active</span>
-                  </button>
-                ) : (
-                  <div className="px-3 py-2 flex items-center gap-2 text-xs text-primary bg-primary/5 border border-primary/20 rounded-md">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span className="font-medium">Scanning {copyQAScanProgress.done}/{copyQAScanProgress.total}</span>
-                    <div className="w-16 h-1.5 bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-primary rounded-full transition-all duration-300" style={{ width: `${copyQAScanProgress.total > 0 ? (copyQAScanProgress.done / copyQAScanProgress.total) * 100 : 0}%` }} />
-                    </div>
-                  </div>
-                )}
+            const isFullyScanned = scannedCount >= totalActive && totalActive > 0;
+
+            // State: SCANNING
+            if (copyQAScanning) return (
+              <div className="px-3 py-2 flex items-center gap-2 text-xs text-primary bg-primary/5 border border-primary/20 rounded-md animate-pulse">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span className="font-medium">Scanning {copyQAScanProgress.done}/{copyQAScanProgress.total}</span>
+                <div className="w-20 h-1.5 bg-secondary rounded-full overflow-hidden">
+                  <div className="h-full bg-primary rounded-full transition-all duration-300" style={{ width: `${copyQAScanProgress.total > 0 ? (copyQAScanProgress.done / copyQAScanProgress.total) * 100 : 0}%` }} />
+                </div>
               </div>
+            );
+
+            // State: SCANNED — has issues
+            if (isFullyScanned && issueCount > 0) return (
+              <button onClick={() => setStatusFilter(statusFilter === "copyQA" ? "active" : "copyQA")} className={`px-3 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-1.5 ${statusFilter === "copyQA" ? "bg-amber-500 text-white shadow-md ring-2 ring-amber-500/30" : "bg-amber-500/10 border border-amber-500/30 text-amber-500 hover:bg-amber-500/20 hover:shadow-md hover:shadow-amber-500/10"}`}>
+                <ShieldAlert className="w-4 h-4" />
+                <span>Copy QA</span>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${statusFilter === "copyQA" ? "bg-white/20" : "bg-amber-500/20"}`}>{issueCount} {issueCount === 1 ? 'issue' : 'issues'}</span>
+              </button>
+            );
+
+            // State: SCANNED — all clean
+            if (isFullyScanned && issueCount === 0) return (
+              <button onClick={scanActiveCopyQA} className="px-3 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/20" title="Re-scan all active campaigns">
+                <ShieldCheck className="w-4 h-4" />
+                <span>Copy QA</span>
+                <span className="text-[10px]">✓ All Clean</span>
+              </button>
+            );
+
+            // State: NOT SCANNED or partially scanned
+            return (
+              <button onClick={scanActiveCopyQA} className="px-3 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-1.5 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 hover:border-primary/50 hover:shadow-md hover:shadow-primary/10">
+                <ShieldAlert className="w-4 h-4" />
+                <span>Copy QA</span>
+                {scannedCount > 0 ? (
+                  <span className="text-[9px] text-primary/60">{scannedCount}/{totalActive}</span>
+                ) : (
+                  <span className="text-[10px] font-normal text-primary/60">Scan</span>
+                )}
+              </button>
             );
           })()}
         </div>
@@ -591,6 +606,21 @@ export default function CampaignsPage() {
                         {campaign.copyErrors.length > 0 && (
                           <div title={campaign.copyErrors.join('\n')} className="bg-amber-500/10 text-amber-500 border border-amber-500/20 p-1 rounded-full shrink-0"><AlertCircle className="w-3.5 h-3.5" /></div>
                         )}
+                        {/* Copy QA indicator from cache */}
+                        {(() => {
+                          const audit = copyQACache.get(campaign.id);
+                          if (!audit) return null;
+                          const hasIssues = audit.critical > 0 || audit.warnings > 0;
+                          return hasIssues ? (
+                            <span title={`${audit.critical} critical · ${audit.warnings} warnings`} className="inline-flex items-center gap-0.5 text-[9px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded-full shrink-0">
+                              <ShieldAlert className="w-2.5 h-2.5" />{audit.critical + audit.warnings}
+                            </span>
+                          ) : (
+                            <span title="Copy QA passed" className="inline-flex items-center text-[9px] text-emerald-500/70 shrink-0">
+                              <ShieldCheck className="w-3 h-3" />
+                            </span>
+                          );
+                        })()}
                         {campaign.status !== 'Active' && (
                           <span className="text-[10px] bg-secondary text-muted-foreground px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0 border border-border">{campaign.status}</span>
                         )}
