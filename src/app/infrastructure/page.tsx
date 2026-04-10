@@ -6,8 +6,33 @@ import React from 'react';
 export const dynamic = 'force-dynamic';
 
 export default async function InfrastructurePage() {
-  const data = await fetchZapmailData();
-  
+  let data;
+  let errorMessage = null;
+
+  try {
+    data = await fetchZapmailData();
+  } catch (error: any) {
+    errorMessage = error.message || "An unknown error occurred while fetching data.";
+  }
+
+  if (errorMessage) {
+    return (
+      <div className="max-w-7xl mx-auto space-y-8 p-8 animate-in fade-in duration-500">
+        <div className="bg-red-500/10 border border-red-500 text-red-600 dark:text-red-400 p-6 rounded-xl">
+          <h2 className="text-xl font-bold flex items-center mb-2">
+            <AlertTriangle className="w-6 h-6 mr-2" />
+            Infrastructure Error
+          </h2>
+          <p>{errorMessage}</p>
+          <p className="mt-4 text-sm font-medium">Please verify your Environment Variables (ZAPMAIL_API_KEY) in your hosting provider.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If no error, we have data!
+  if (!data) return null;
+
   return (
     <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
