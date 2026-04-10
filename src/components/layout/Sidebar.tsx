@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Megaphone, FileText, Settings } from "lucide-react";
+import { LayoutDashboard, Megaphone, FileText, Settings, Server } from "lucide-react";
 import { SyncButton } from "@/components/SyncButton";
 
 export function Sidebar() {
@@ -41,6 +41,15 @@ export function Sidebar() {
         >
           <FileText className="w-4 h-4 mr-3" />
           Brief Generator
+        </Link>
+        <Link 
+          href="/infrastructure" 
+          className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+            pathname?.startsWith("/infrastructure") ? "bg-secondary text-secondary-foreground" : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
+          }`}
+        >
+          <Server className="w-4 h-4 mr-3" />
+          Infrastructure
         </Link>
       </nav>
       <div className="p-4 border-t border-border space-y-1">
