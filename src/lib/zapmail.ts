@@ -34,25 +34,33 @@ export async function fetchZapmailData(): Promise<ZapmailSummary> {
     "Accept": "application/json"
   };
 
-  // 1. Fetch all connected accounts
-  let accounts: any[] = [];
-  let page = 1;
-  let hasNextPage = true;
+  // 1. Fetch first page to get total pages and initial accounts
+  const firstRes = await fetch(`${BASE_URL}/v2/onebox/connected-accounts?page=1&limit=100`, { headers, next: { revalidate: 60 } });
+  if (!firstRes.ok) {
+     throw new Error(`Failed to fetch Zapmail accounts page 1: ${await firstRes.text()}`);
+  }
+  const firstData = await firstRes.json();
+  let accounts: any[] = firstData.data || [];
+  const totalPages = firstData.pagination?.totalPages || 1;
 
-  while (hasNextPage) {
-    const url = `${BASE_URL}/v2/onebox/connected-accounts?page=${page}&limit=50`;
-    const res = await fetch(url, { headers, next: { revalidate: 60 } }); // Cache for 60 seconds
-    
-    if (!res.ok) {
-        console.error(`Failed to fetch Zapmail accounts page ${page}`, await res.text());
-        break; // stop on error
+  // Fetch remaining pages concurrently to prevent Vercel Serverless Timeouts
+  if (totalPages > 1) {
+    const pagePromises = [];
+    for (let p = 2; p <= totalPages; p++) {
+      pagePromises.push(
+        fetch(`${BASE_URL}/v2/onebox/connected-accounts?page=${p}&limit=100`, { headers, next: { revalidate: 60 } })
+          .then(res => res.json())
+          .then(data => data.data || [])
+          .catch(err => {
+             console.error(`Failed fetching page ${p}:`, err);
+             return [];
+          })
+      );
     }
-    
-    const data = await res.json();
-    accounts = accounts.concat(data.data || []);
-    
-    hasNextPage = !!data.pagination?.hasNextPage;
-    if (hasNextPage) page++;
+    const pagesResults = await Promise.all(pagePromises);
+    pagesResults.forEach(pageAccounts => {
+       accounts = accounts.concat(pageAccounts);
+    });
   }
 
   // 2. Fetch subscriptions
@@ -89,8 +97,8 @@ export async function fetchZapmailData(): Promise<ZapmailSummary> {
       const stats = domainsMap.get(domain)!;
       stats.totalAccounts += 1;
       
-      if (status === "active") stats.activeAccounts += 1;
-      else if (status === "disconnected") stats.disconnectedAccounts += 1;
+      if (status === "active" || status === "ACTIVE") stats.activeAccounts += 1;
+      else if (status === "disconnected" || status === "DISCONNECTED") stats.disconnectedAccounts += 1;
       else stats.pausedAccounts += 1;
     }
   });
@@ -103,18 +111,17 @@ export async function fetchZapmailData(): Promise<ZapmailSummary> {
   const subscriptions: ZapmailSubscription[] = [];
 
   subscriptionsData.forEach((sub: any) => {
-    if (sub.status === "active") {
-      const cost = parseFloat(sub.amount || 0);
+    if (sub.subscriptionStatus === "ACTIVE" || sub.subscriptionStatus === "active") {
+      const cost = parseFloat(sub.price || 0);
       totalMRR += cost;
       
-      const rawDate = sub.currentPeriodEnd || "N/A";
-      // ensure we just get YYYY-MM-DD
+      const rawDate = sub.periodEnd || "N/A";
       const nextPayment = rawDate !== "N/A" ? rawDate.substring(0, 10) : rawDate;
       
       subscriptions.push({
-        id: sub.id,
+        id: sub.id || sub.subscriptionId,
         cost,
-        currency: (sub.currency || "usd").toUpperCase(),
+        currency: "USD",
         nextPayment
       });
     }
