@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Megaphone, FileText, Settings, Server } from "lucide-react";
+import { LayoutDashboard, Megaphone, FileText, Settings, Server, Factory } from "lucide-react";
 import { SyncButton } from "@/components/SyncButton";
 
 export function Sidebar() {
@@ -32,6 +32,15 @@ export function Sidebar() {
         >
           <Megaphone className="w-4 h-4 mr-3" />
           Campaign Monitor
+        </Link>
+        <Link 
+          href="/factory" 
+          className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+            pathname?.startsWith("/factory") ? "bg-secondary text-secondary-foreground" : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
+          }`}
+        >
+          <Factory className="w-4 h-4 mr-3" />
+          Campaign Factory
         </Link>
         <Link 
           href="/briefs" 
