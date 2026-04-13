@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Megaphone, FileText, Settings, Server, Factory } from "lucide-react";
+import { LayoutDashboard, Megaphone, FileText, Settings, Server, Factory, Wallet } from "lucide-react";
 import { SyncButton } from "@/components/SyncButton";
 
 export function Sidebar() {
@@ -59,6 +59,15 @@ export function Sidebar() {
         >
           <Server className="w-4 h-4 mr-3" />
           Infrastructure
+        </Link>
+        <Link 
+          href="/finance" 
+          className={`flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+            pathname?.startsWith("/finance") ? "bg-secondary text-secondary-foreground" : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
+          }`}
+        >
+          <Wallet className="w-4 h-4 mr-3" />
+          Finance
         </Link>
       </nav>
       <div className="p-4 border-t border-border space-y-1">
