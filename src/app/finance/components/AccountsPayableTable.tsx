@@ -11,6 +11,7 @@ type APTransaction = {
   transaction_date: string;
   status: string;
   due_date: string | null;
+  email_subject?: string;
 };
 
 export default function AccountsPayableTable({ transactions, onResolved }: { transactions: APTransaction[], onResolved: () => void }) {
@@ -47,6 +48,7 @@ export default function AccountsPayableTable({ transactions, onResolved }: { tra
           <thead>
             <tr className="bg-white/5 border-b border-white/10 text-xs uppercase tracking-wider text-gray-400">
               <th className="p-4 font-medium">Vendor</th>
+              <th className="p-4 font-medium">Description</th>
               <th className="p-4 font-medium">Date</th>
               <th className="p-4 font-medium">Amount</th>
               <th className="p-4 font-medium">Status</th>
@@ -59,6 +61,9 @@ export default function AccountsPayableTable({ transactions, onResolved }: { tra
                 <td className="p-4">
                   <div className="font-medium text-white">{tx.vendor_name}</div>
                   <div className="text-xs text-gray-500">{tx.vendor_email}</div>
+                </td>
+                <td className="p-4 text-xs text-gray-400 max-w-xs break-words">
+                  {tx.email_subject ? tx.email_subject.split(' ').slice(0, 8).join(' ') + (tx.email_subject.split(' ').length > 8 ? '...' : '') : 'No description'}
                 </td>
                 <td className="p-4 text-gray-300">
                   {new Date(tx.transaction_date).toLocaleDateString()}

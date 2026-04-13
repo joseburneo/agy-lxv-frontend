@@ -24,7 +24,21 @@ export default function FinanceDashboard() {
         .order('transaction_date', { ascending: false });
 
       if (apErr) throw apErr;
-      setApTransactions(apData || []);
+      
+      // Deduplicate repeated failed charges (retries) from the same vendor in the same month
+      const seen = new Set<string>();
+      const deduped: any[] = [];
+      const data = apData || [];
+      for (const tx of data) {
+        const txDate = new Date(tx.transaction_date);
+        const hash = `${tx.vendor_name}-${Math.round(tx.amount)}-${txDate.getFullYear()}-${txDate.getMonth()}`;
+        if (!seen.has(hash)) {
+          seen.add(hash);
+          deduped.push(tx);
+        }
+      }
+
+      setApTransactions(deduped);
 
       // Fetch the latest daily snapshot
       const { data: snapData, error: snapErr } = await financeSupabase
