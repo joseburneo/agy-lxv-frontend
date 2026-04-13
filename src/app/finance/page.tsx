@@ -25,26 +25,48 @@ export default function FinanceDashboard() {
 
       if (apErr) throw apErr;
       
-      // Deduplicate repeated failed charges (retries) from the same vendor in the same month
-      const seen = new Set<string>();
-      const deduped: any[] = [];
       const data = apData || [];
+      
+      const receipts: any[] = [];
+      const alerts: any[] = [];
+      
       for (const tx of data) {
-        const txDate = new Date(tx.transaction_date);
-        
-        // Clean up the subject to normalize retries (e.g., stripping Re: or Fwd: if any, and trimming whitespace)
-        const cleanSubject = (tx.email_subject || '').replace(/^(Re|Fwd):\s*/i, '').trim();
-        
-        // Hash uses Vendor + Amount + Month + Subject. 
-        // This ensures retries (exact same subject) are grouped, while distinct invoices are separated.
-        const hash = `${tx.vendor_name}-${Math.round(tx.amount)}-${txDate.getFullYear()}-${txDate.getMonth()}-${cleanSubject}`;
-        
-        if (!seen.has(hash)) {
-          seen.add(hash);
-          deduped.push(tx);
-        }
+         const subj = (tx.email_subject || '').toLowerCase();
+         // If it sounds like a failure/warning/attempt, treat as an alert
+         if (subj.includes('unsuccessful') || subj.includes('failed') || subj.includes('failure') || subj.includes('action required') || subj.includes('intento') || subj.includes('aviso')) {
+             alerts.push(tx);
+         } else {
+             // Otherwise treat it as a receipt or standalone upcoming notice
+             receipts.push(tx);
+         }
       }
-
+      
+      const deduped = [...receipts]; // Always show real receipts!
+      
+      // We only show failure notices if they aren't covered by a receipt, AND we deduplicate them
+      const receiptHashes = new Set(
+          receipts.map(tx => {
+             const d = new Date(tx.transaction_date);
+             return `${tx.vendor_name}-${Math.round(tx.amount)}-${d.getFullYear()}-${d.getMonth()}`;
+          })
+      );
+      
+      const seenAlerts = new Set();
+      
+      for (const tx of alerts) {
+          const d = new Date(tx.transaction_date);
+          const hash = `${tx.vendor_name}-${Math.round(tx.amount)}-${d.getFullYear()}-${d.getMonth()}`;
+          
+          if (receiptHashes.has(hash)) continue; // Covered by a receipt
+          if (seenAlerts.has(hash)) continue;    // Covered by another alert we already pushed
+          
+          seenAlerts.add(hash);
+          deduped.push(tx);
+      }
+      
+      // Sort final deduped array by date descending
+      deduped.sort((a, b) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime());
+      
       setApTransactions(deduped);
 
       // Fetch the latest daily snapshot
