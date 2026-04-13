@@ -8,7 +8,7 @@ type APTransaction = {
   vendor_email: string;
   amount: number;
   currency: string;
-  date_received: string;
+  transaction_date: string;
   status: string;
   due_date: string | null;
 };
@@ -61,7 +61,7 @@ export default function AccountsPayableTable({ transactions, onResolved }: { tra
                   <div className="text-xs text-gray-500">{tx.vendor_email}</div>
                 </td>
                 <td className="p-4 text-gray-300">
-                  {new Date(tx.date_received).toLocaleDateString()}
+                  {new Date(tx.transaction_date).toLocaleDateString()}
                 </td>
                 <td className="p-4 font-medium text-white">
                   {tx.currency} {tx.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}

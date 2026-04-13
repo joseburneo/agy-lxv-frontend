@@ -21,7 +21,7 @@ export default function FinanceDashboard() {
         .from('ap_transactions')
         .select('*')
         .in('status', ['pending', 'failed', 'upcoming'])
-        .order('date_received', { ascending: false });
+        .order('transaction_date', { ascending: false });
 
       if (apErr) throw apErr;
       setApTransactions(apData || []);
