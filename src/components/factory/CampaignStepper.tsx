@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { UploadCloud, CheckCircle2, Loader2, ArrowRight, Save, Play, Settings } from "lucide-react";
+import { UploadCloud, CheckCircle2, Loader2, ArrowRight, Save, Play, Settings, Users, Database, ArrowLeft, Search } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { prepareBatch, getJobStatus, enrichBatch, qualifyBatch, FactoryJobState } from "@/lib/factory-api";
+import { prepareBatch, getJobStatus, enrichBatch, qualifyBatch, runAudienceBuilder, FactoryJobState } from "@/lib/factory-api";
 
 const STEPS = [
-  { id: 1, name: "Upload CSV" },
+  { id: 1, name: "Select Source" },
   { id: 2, name: "Estimate Costs" },
   { id: 3, name: "Enrichment Engine" },
   { id: 4, name: "Qualification Rules" },
@@ -15,6 +15,7 @@ const STEPS = [
 
 export default function CampaignStepper() {
   const [currentStep, setCurrentStep] = useState(1);
+  const [sourceMode, setSourceMode] = useState<"selection" | "apify" | "icypeas">("selection");
   const [file, setFile] = useState<File | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   
@@ -39,6 +40,11 @@ export default function CampaignStepper() {
           } else if (state.status === "prepared_waiting_confirmation" && currentStep === 1) {
             setIsProcessing(false);
             setCurrentStep(2);
+            clearInterval(interval);
+          } else if (state.status === "completed" && currentStep === 1) {
+            // Apify Audience Builder finished! It bypasses Steps 2 & 3.
+            setIsProcessing(false);
+            setCurrentStep(4);
             clearInterval(interval);
           } else if (state.status === "completed" && currentStep === 3) {
             setIsProcessing(false);
@@ -67,6 +73,30 @@ export default function CampaignStepper() {
     setIsProcessing(true);
     try {
       const res = await prepareBatch(selected);
+      setJobId(res.job_id);
+    } catch (err: any) {
+      setError(err.message);
+      setIsProcessing(false);
+    }
+  };
+
+  const handleAudienceBuilderSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError(null);
+    const formData = new FormData(e.currentTarget);
+    const filters = {
+      job_title: formData.get("job_title"),
+      company: formData.get("company"),
+      location: formData.get("location"),
+      company_size: formData.get("company_size"),
+      industry: formData.get("industry"),
+      keywords: formData.get("keywords"),
+      number_of_leads: Number(formData.get("number_of_leads")) || 1000,
+    };
+    
+    setIsProcessing(true);
+    try {
+      const res = await runAudienceBuilder(filters);
       setJobId(res.job_id);
     } catch (err: any) {
       setError(err.message);
@@ -134,32 +164,39 @@ export default function CampaignStepper() {
       {/* Stepper Header */}
       <nav aria-label="Progress" className="mb-10">
         <ol role="list" className="space-y-4 md:flex md:space-y-0 md:space-x-8">
-          {STEPS.map((step) => (
-            <li key={step.name} className="md:flex-1">
-              <div
-                className={`group flex flex-col border-l-4 py-2 pl-4 md:border-l-0 md:border-t-4 md:pb-0 md:pl-0 md:pt-4 transition-colors ${
-                  currentStep > step.id
-                    ? "border-emerald-600"
-                    : currentStep === step.id
-                    ? "border-blue-600"
-                    : "border-gray-200"
-                }`}
-              >
-                <span
-                  className={`text-sm font-medium ${
-                    currentStep > step.id
-                      ? "text-emerald-600"
-                      : currentStep === step.id
-                      ? "text-blue-600"
-                      : "text-gray-500"
+          {STEPS.map((step) => {
+            const isApifyMode = sourceMode === "apify";
+            // If in Apify mode, highlight Steps 2 & 3 as skipped or completed quickly
+            const isActive = currentStep === step.id;
+            const isCompleted = currentStep > step.id || (isApifyMode && currentStep === 4 && (step.id === 2 || step.id === 3));
+
+            return (
+              <li key={step.name} className="md:flex-1">
+                <div
+                  className={`group flex flex-col border-l-4 py-2 pl-4 md:border-l-0 md:border-t-4 md:pb-0 md:pl-0 md:pt-4 transition-colors ${
+                    isCompleted
+                      ? "border-emerald-600"
+                      : isActive
+                      ? "border-blue-600"
+                      : "border-gray-200"
                   }`}
                 >
-                  Step {step.id}
-                </span>
-                <span className="text-sm font-semibold text-gray-900">{step.name}</span>
-              </div>
-            </li>
-          ))}
+                  <span
+                    className={`text-sm font-medium ${
+                      isCompleted
+                        ? "text-emerald-600"
+                        : isActive
+                        ? "text-blue-600"
+                        : "text-gray-500"
+                    }`}
+                  >
+                    Step {step.id} {isApifyMode && (step.id === 2 || step.id === 3) ? "(Skipped)" : ""}
+                  </span>
+                  <span className="text-sm font-semibold text-gray-900">{step.name}</span>
+                </div>
+              </li>
+            );
+          })}
         </ol>
       </nav>
 
@@ -179,31 +216,142 @@ export default function CampaignStepper() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-lg border-gray-300 hover:border-blue-500 transition-colors bg-gray-50/50"
+              className="flex flex-col"
             >
               {isProcessing ? (
-                <div className="flex flex-col items-center text-blue-600">
-                  <Loader2 className="w-10 h-10 animate-spin mb-4" />
-                  <p className="font-medium text-gray-900">Preparing and calculating dataset...</p>
-                  <p className="text-sm text-gray-500 mt-2">{jobState?.data?.progress || 'Looking up cache...'}</p>
+                <div className="flex flex-col items-center justify-center p-12 border border-blue-100 rounded-lg bg-blue-50/30">
+                  <Loader2 className="w-10 h-10 animate-spin text-blue-600 mb-4" />
+                  <p className="font-medium text-gray-900">Working...</p>
+                  <p className="text-sm text-gray-500 mt-2">{jobState?.data?.progress || 'Initiating...'}</p>
                 </div>
               ) : (
                 <>
-                  <UploadCloud className="w-12 h-12 text-gray-400 mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900">Upload Clay CSV</h3>
-                  <p className="mt-1 text-sm text-gray-500 text-center max-w-sm mb-6">
-                    File must contain First Name, Last Name, Company Name (or Domain), and LinkedIn Profile columns.
-                  </p>
-                  <label className="relative cursor-pointer bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-5 rounded-lg shadow-sm transition-all focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
-                    <span>Select CSV file</span>
-                    <input type="file" className="sr-only" accept=".csv" onChange={handleFileUpload} />
-                  </label>
+                  {sourceMode === "selection" && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Apify Card */}
+                      <button 
+                        onClick={() => setSourceMode("apify")}
+                        className="flex flex-col items-start p-8 rounded-xl border-2 border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-all text-left bg-white shadow-sm"
+                      >
+                        <div className="bg-blue-100 text-blue-600 p-3 rounded-lg mb-4">
+                          <Users className="w-8 h-8" />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">Audience Builder</h3>
+                        <p className="text-gray-500 mb-4 text-sm leading-relaxed">
+                          Build a brand new list of leads from scratch using dynamic filters. Powered by Apify.
+                        </p>
+                        <div className="mt-auto inline-flex items-center text-sm font-medium text-blue-600">
+                          Configure Filters <ArrowRight className="w-4 h-4 ml-1" />
+                        </div>
+                      </button>
+
+                      {/* Icypeas Card */}
+                      <button 
+                        onClick={() => setSourceMode("icypeas")}
+                        className="flex flex-col items-start p-8 rounded-xl border-2 border-gray-200 hover:border-indigo-500 hover:bg-indigo-50 transition-all text-left bg-white shadow-sm"
+                      >
+                        <div className="bg-indigo-100 text-indigo-600 p-3 rounded-lg mb-4">
+                          <Database className="w-8 h-8" />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">Custom List Enrichment</h3>
+                        <p className="text-gray-500 mb-4 text-sm leading-relaxed">
+                          Upload a specific CSV to find emails. Powered by Icypeas and Supabase Cache.
+                        </p>
+                        <div className="mt-auto inline-flex items-center text-sm font-medium text-indigo-600">
+                          Upload CSV <ArrowRight className="w-4 h-4 ml-1" />
+                        </div>
+                      </button>
+                    </div>
+                  )}
+
+                  {sourceMode === "apify" && (
+                    <div className="border border-gray-200 rounded-xl p-8 bg-white shadow-sm">
+                      <div className="flex items-center justify-between mb-6">
+                        <button onClick={() => setSourceMode("selection")} className="flex items-center text-sm text-gray-500 hover:text-gray-900 transition-colors">
+                          <ArrowLeft className="w-4 h-4 mr-1" /> Back
+                        </button>
+                        <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">
+                          <Search className="w-3.5 h-3.5" /> Powered by Apify
+                        </div>
+                      </div>
+
+                      <h3 className="text-xl font-bold text-gray-900 mb-1">Define Target Audience</h3>
+                      <p className="text-sm text-gray-500 mb-8 border-b pb-6">Fill in the criteria to build your list. We will scrape and verify their emails.</p>
+
+                      <form onSubmit={handleAudienceBuilderSubmit} className="space-y-5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Job Title / Seniority</label>
+                            <input name="job_title" type="text" placeholder="e.g. CEO, Founder, Director of Marketing" className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Location</label>
+                            <input name="location" type="text" placeholder="e.g. Texas, London, Germany" className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Target Companies</label>
+                            <input name="company" type="text" placeholder="e.g. tesla.com, google.com (Optional)" className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Industry</label>
+                            <input name="industry" type="text" placeholder="e.g. real estate, software" className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Company Size (Exact range)</label>
+                            <select name="company_size" className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border">
+                              <option value="">Any Size</option>
+                              <option value="1-10">1-10</option>
+                              <option value="11-20">11-20</option>
+                              <option value="21-50">21-50</option>
+                              <option value="51-100">51-100</option>
+                              <option value="101-200">101-200</option>
+                              <option value="201-500">201-500</option>
+                              <option value="501-1000">501-1000</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Keywords</label>
+                            <input name="keywords" type="text" placeholder="e.g. saas, b2b, ecommerce" className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border" />
+                          </div>
+                        </div>
+
+                        <div className="pt-6 border-t mt-6 flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                             <label className="text-sm font-semibold text-gray-700">Leads to fetch:</label>
+                             <input name="number_of_leads" type="number" defaultValue={100} min={10} max={100000} className="w-32 border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border" />
+                          </div>
+                          <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-6 rounded-lg shadow-sm transition-all focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center gap-2">
+                            Run Audience Builder <Play className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+
+                  {sourceMode === "icypeas" && (
+                    <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-xl border-gray-300 hover:border-indigo-500 transition-colors bg-gray-50/50">
+                      <div className="w-full flex justify-start mb-6 -mt-6">
+                        <button onClick={() => setSourceMode("selection")} className="flex items-center text-sm text-gray-500 hover:text-gray-900 transition-colors">
+                          <ArrowLeft className="w-4 h-4 mr-1" /> Back
+                        </button>
+                      </div>
+                      <UploadCloud className="w-12 h-12 text-indigo-400 mb-4" />
+                      <h3 className="text-xl font-bold text-gray-900">Upload Target CSV</h3>
+                      <p className="mt-2 text-sm text-gray-500 text-center max-w-sm mb-8">
+                        File must contain First Name, Last Name, Company Name (or Domain), and LinkedIn Profile columns. We will use Icypeas to find missing emails.
+                      </p>
+                      <label className="relative cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-6 rounded-lg shadow-sm transition-all focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
+                        <span>Select CSV file</span>
+                        <input type="file" className="sr-only" accept=".csv" onChange={handleFileUpload} />
+                      </label>
+                    </div>
+                  )}
                 </>
               )}
             </motion.div>
           )}
 
-          {currentStep === 2 && jobState?.data && (
+          {currentStep === 2 && jobState?.data && sourceMode === "icypeas" && (
             <motion.div
               key="step2"
               initial={{ opacity: 0, x: 20 }}
@@ -248,7 +396,7 @@ export default function CampaignStepper() {
                 </button>
                 <button 
                   onClick={handleApproveEnrichment}
-                  className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium shadow-sm"
+                  className="flex items-center gap-2 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium shadow-sm"
                 >
                   Confirm & Pay Credits <ArrowRight className="w-4 h-4" />
                 </button>
@@ -265,10 +413,10 @@ export default function CampaignStepper() {
             >
               <div className="relative">
                 <div className="w-24 h-24 border-4 border-gray-100 rounded-full animate-pulse"></div>
-                <div className="absolute top-0 left-0 w-24 h-24 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
-                <Settings className="w-8 h-8 text-blue-600 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                <div className="absolute top-0 left-0 w-24 h-24 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
+                <Settings className="w-8 h-8 text-indigo-600 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 mt-6">Enriching via Apify & Icypeas...</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mt-6">Enriching via Icypeas...</h3>
               <p className="text-gray-500 mt-2">
                 {jobState?.data?.progress || "Initializing verification engines"}
               </p>
@@ -281,9 +429,18 @@ export default function CampaignStepper() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              <div className="mb-6">
-                <h3 className="text-xl font-bold">Configure Research & Qualification</h3>
-                <p className="text-gray-500 mt-1">Define the specific context for identifying Gold, Silver, and Bronze leads for this campaign.</p>
+              <div className="mb-6 flex items-center justify-between border-b pb-4">
+                <div>
+                  <h3 className="text-xl font-bold">Configure Research & Qualification</h3>
+                  <p className="text-gray-500 mt-1">Define the specific context for identifying Gold, Silver, and Bronze leads for this campaign.</p>
+                </div>
+                {sourceMode === "apify" && (
+                  <div className="text-right">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-sm font-medium">
+                       <CheckCircle2 className="w-4 h-4" /> Audience Builder Complete
+                    </span>
+                  </div>
+                )}
               </div>
 
               {isProcessing ? (
@@ -296,23 +453,23 @@ export default function CampaignStepper() {
                 <form onSubmit={handleQualify} className="space-y-5">
                   <div>
                     <label className="block text-sm font-semibold text-gray-900">Tier 1 (Gold) Criteria</label>
-                    <textarea name="tier1" rows={2} className="mt-1 block w-full rounded-md border border-gray-300 p-2 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="e.g., Target has 'Partner' or 'Founder' in title and company > 10 employees." required></textarea>
+                    <textarea name="tier1" rows={2} className="mt-1 block w-full rounded-lg border border-gray-300 p-3 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="e.g., Target has 'Partner' or 'Founder' in title and company > 10 employees." required></textarea>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-900">Tier 2 (Silver) Criteria</label>
-                    <textarea name="tier2" rows={2} className="mt-1 block w-full rounded-md border border-gray-300 p-2 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="e.g., Manager level, or relevant industry but smaller size."></textarea>
+                    <textarea name="tier2" rows={2} className="mt-1 block w-full rounded-lg border border-gray-300 p-3 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="e.g., Manager level, or relevant industry but smaller size."></textarea>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-900">Tier 3 (Bronze) Criteria</label>
-                    <textarea name="tier3" rows={2} className="mt-1 block w-full rounded-md border border-gray-300 p-2 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="e.g., Any other verified lead."></textarea>
+                    <textarea name="tier3" rows={2} className="mt-1 block w-full rounded-lg border border-gray-300 p-3 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="e.g., Any other verified lead."></textarea>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-red-700">No-Go (Reject) Criteria</label>
-                    <textarea name="nogo" rows={2} className="mt-1 block w-full rounded-md border border-red-300 p-2 shadow-sm focus:border-red-500 focus:ring-red-500" placeholder="e.g., No verified email, or specific competitors."></textarea>
+                    <textarea name="nogo" rows={2} className="mt-1 block w-full rounded-lg border border-red-300 p-3 shadow-sm focus:border-red-500 focus:ring-red-500" placeholder="e.g., No verified email, or specific competitors."></textarea>
                   </div>
                   
                   <div className="flex justify-end pt-4">
-                    <button type="submit" className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-sm shadow-blue-200">
+                    <button type="submit" className="flex items-center gap-2 px-6 py-3 bg-gray-900 hover:bg-black text-white rounded-lg font-medium shadow-sm transition-colors">
                       <Play className="w-4 h-4" /> Run Classifier & Personalization
                     </button>
                   </div>
@@ -392,7 +549,7 @@ export default function CampaignStepper() {
               
               <div className="flex justify-start mt-8">
                 <button 
-                  onClick={() => { setFile(null); setCurrentStep(1); setJobState(null); }}
+                  onClick={() => { setFile(null); setCurrentStep(1); setJobState(null); setSourceMode("selection"); }}
                   className="text-blue-600 hover:underline font-medium text-sm"
                 >
                   Start New Campaign

@@ -20,7 +20,7 @@ export default function FinanceDashboard() {
       const { data: apData, error: apErr } = await financeSupabase
         .from('ap_transactions')
         .select('*')
-        .in('status', ['pending', 'failed', 'upcoming'])
+        .in('status', ['pending', 'failed', 'upcoming', 'paid'])
         .order('transaction_date', { ascending: false });
 
       if (apErr) throw apErr;
@@ -122,7 +122,7 @@ export default function FinanceDashboard() {
         {/* Dynamic Views / Tables */}
         <section className="space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-white">Action Required: Accounts Payable</h2>
+            <h2 className="text-xl font-semibold text-white">Accounts Payable History</h2>
             <button onClick={loadData} disabled={loading} className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors">
               {loading ? 'Refreshing...' : 'Refresh Data'}
             </button>

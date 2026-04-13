@@ -75,19 +75,22 @@ export default function AccountsPayableTable({ transactions, onResolved }: { tra
                   <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                     tx.status === 'failed' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
                     tx.status === 'upcoming' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                    tx.status === 'paid' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
                     'bg-blue-500/10 text-blue-400 border border-blue-500/20'
                   }`}>
                     {tx.status}
                   </span>
                 </td>
                 <td className="p-4 text-right">
-                  <button
-                    onClick={() => handleResolve(tx.id)}
-                    disabled={resolvingId === tx.id}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity bg-indigo-500 hover:bg-indigo-600 text-white text-xs px-3 py-1.5 rounded disabled:opacity-50"
-                  >
-                    {resolvingId === tx.id ? 'Updating...' : 'Mark as Resolved'}
-                  </button>
+                  {tx.status !== 'paid' && (
+                    <button
+                      onClick={() => handleResolve(tx.id)}
+                      disabled={resolvingId === tx.id}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity bg-indigo-500 hover:bg-indigo-600 text-white text-xs px-3 py-1.5 rounded disabled:opacity-50"
+                    >
+                      {resolvingId === tx.id ? 'Updating...' : 'Mark as Resolved'}
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

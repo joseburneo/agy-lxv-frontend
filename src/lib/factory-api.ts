@@ -22,6 +22,20 @@ export async function prepareBatch(file: File): Promise<{ status: string; job_id
 }
 
 /**
+ * Step 1 (Alternative): Run Apify Audience Builder
+ */
+export async function runAudienceBuilder(filters: Record<string, any>): Promise<{ status: string; job_id: string }> {
+  const res = await fetch(`${BACKEND_URL}/api/factory/audience-builder`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filters }),
+  });
+
+  if (!res.ok) throw new Error("Failed to start audience builder");
+  return res.json();
+}
+
+/**
  * Step 2: Accept costs and enrich
  */
 export async function enrichBatch(jobId: string): Promise<{ status: string; job_id: string }> {
