@@ -120,7 +120,7 @@ export default function FinanceDashboard() {
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <MetricCard 
             title="30-Day Forecast (AED)" 
-            value={snapshot ? `د.إ ${Number(snapshot.forecasted_net_cash_30d).toLocaleString(undefined, {minimumFractionDigits: 2})}` : '...'}
+            value={snapshot ? `د.إ ${Number((snapshot.total_ar_outstanding || 0) * 3.67 - (snapshot.total_ap_upcoming_30d || 0)).toLocaleString(undefined, {minimumFractionDigits: 2})}` : '...'}
             description="Projected net balance (AR inbound - AP outbound)"
             trend="neutral"
             trendValue="30d outlook"
