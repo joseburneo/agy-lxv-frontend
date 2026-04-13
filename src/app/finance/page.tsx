@@ -31,7 +31,14 @@ export default function FinanceDashboard() {
       const data = apData || [];
       for (const tx of data) {
         const txDate = new Date(tx.transaction_date);
-        const hash = `${tx.vendor_name}-${Math.round(tx.amount)}-${txDate.getFullYear()}-${txDate.getMonth()}`;
+        
+        // Clean up the subject to normalize retries (e.g., stripping Re: or Fwd: if any, and trimming whitespace)
+        const cleanSubject = (tx.email_subject || '').replace(/^(Re|Fwd):\s*/i, '').trim();
+        
+        // Hash uses Vendor + Amount + Month + Subject. 
+        // This ensures retries (exact same subject) are grouped, while distinct invoices are separated.
+        const hash = `${tx.vendor_name}-${Math.round(tx.amount)}-${txDate.getFullYear()}-${txDate.getMonth()}-${cleanSubject}`;
+        
         if (!seen.has(hash)) {
           seen.add(hash);
           deduped.push(tx);
