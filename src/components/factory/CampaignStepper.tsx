@@ -73,7 +73,8 @@ export default function CampaignStepper() {
     try {
       const res = await parseAudiencePrompt(aiPrompt);
       if (res.data) {
-        setAudienceFilters({
+        setAudienceFilters(prev => ({
+          ...prev,
           job_title: res.data.job_title ? res.data.job_title.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
           seniority_level: res.data.seniority_level ? res.data.seniority_level.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
           location: res.data.location ? res.data.location.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
@@ -84,7 +85,7 @@ export default function CampaignStepper() {
           company: res.data.company ? res.data.company.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
           exclude_domains: res.data.exclude_domains ? res.data.exclude_domains.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
           number_of_leads: res.data.number_of_leads || 100
-        });
+        }));
       }
     } catch (err: any) {
       setError(err.message || "Failed to parse prompt");
