@@ -714,6 +714,12 @@ export default function CampaignStepper() {
                         All {jobState?.data?.length || 0} leads have been graded and personalized. 
                         Ready for Instantly upload.
                       </p>
+                      {jobState?.metadata?.run_cost_usd !== undefined && (
+                        <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-100 rounded-lg border border-emerald-200">
+                          <span className="text-sm font-medium text-emerald-900">Apify Data Engine Cost:</span>
+                          <span className="text-sm font-bold text-emerald-700">${Number(jobState.metadata.run_cost_usd).toFixed(4)} USD</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <button 
