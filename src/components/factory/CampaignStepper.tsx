@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { UploadCloud, CheckCircle2, Loader2, ArrowRight, Save, Play, Settings, Users, Database, ArrowLeft, Search } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { prepareBatch, getJobStatus, enrichBatch, qualifyBatch, runAudienceBuilder, parseAudiencePrompt, FactoryJobState } from "@/lib/factory-api";
+import { AutocompleteTagsInput } from "./AutocompleteTagsInput";
 
 const STEPS = [
   { id: 1, name: "Select Source" },
@@ -13,44 +14,17 @@ const STEPS = [
   { id: 5, name: "Final Review" }
 ];
 
-const TagsInput = ({ tags, setTags, placeholder, label }: any) => {
-  const handleKeyDown = (e: any) => {
-    if (e.key === 'Enter' && e.target.value) {
-      e.preventDefault();
-      const val = e.target.value.trim();
-      if (val && !tags.includes(val)) {
-        setTags([...tags, val]);
-      }
-      e.target.value = '';
-    }
-  };
+const JOB_TITLES = [
+  "Chief Executive Officer", "CEO", "Chief Financial Officer", "CFO", "Chief Operating Officer", "COO", "Chief Marketing Officer", "CMO", "Chief Technology Officer", "CTO", "Managing Director", "MD", "General Manager", "GM", "Vice President of Sales", "VP Sales", "Vice President of Marketing", "VP Marketing", "Vice President of Engineering", "VP Engineering", "Director of Sales", "Director of Marketing", "Director of Engineering", "Account Executive", "Software Engineer", "Project Manager", "Product Manager", "Head of Operations", "Finance Director", "Marketing Manager", "Sales Manager", "Human Resources Director", "HR Manager", "Data Scientist", "Lead Developer", "Consultant", "Business Analyst"
+];
 
-  const removeTag = (indexToRemove: number) => {
-    setTags(tags.filter((_: any, index: number) => index !== indexToRemove));
-  };
+const LOCATIONS = [
+  "United States", "Germany", "India", "United Kingdom", "Russia", "France", "China", "Canada", "Netherlands", "Mexico", "Belgium", "Japan", "Brazil", "Australia", "Poland", "Thailand", "Sweden", "Portugal", "Spain", "Czech Republic", "Taiwan", "South Africa", "Colombia", "Italy", "Vietnam", "Nigeria", "Singapore", "Hong Kong", "Ireland", "Israel", "Switzerland", "Turkey", "Romania", "South Korea", "Indonesia", "United Arab Emirates", "Saudi Arabia", "Austria", "Philippines", "Peru", "Malaysia", "Argentina", "Ukraine", "Ghana", "Denmark", "Norway", "Finland", "Puerto Rico", "Qatar", "Macau", "New Zealand", "Hungary", "Luxembourg", "Kuwait", "Egypt", "Slovakia", "Greece", "Kenya", "Bulgaria", "Costa Rica", "Chile", "Venezuela", "Afghanistan"
+];
 
-  return (
-    <div className="w-full">
-      {label && <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>}
-      <div className="min-h-[42px] border border-gray-300 rounded-lg shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 flex flex-wrap items-center gap-1.5 p-1.5 bg-white">
-        {tags.map((tag: string, index: number) => (
-          <span key={index} className="flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-medium">
-            {tag}
-            <button type="button" onClick={() => removeTag(index)} className="hover:text-blue-900 focus:outline-none">
-              &times;
-            </button>
-          </span>
-        ))}
-        <input 
-          type="text" 
-          placeholder={tags.length === 0 ? placeholder : ""} 
-          className="flex-1 min-w-[120px] outline-none text-sm bg-transparent border-none focus:ring-0 p-1"
-          onKeyDown={handleKeyDown}
-        />
-      </div>
-    </div>
-  );
-};
+const INDUSTRIES = [
+  "Information Technology & Services", "Construction", "Marketing & Advertising", "Real Estate", "Health, Wellness & Fitness", "Management Consulting", "Computer Software", "Internet", "Retail", "Financial Services", "Consumer Services", "Hospital & Health Care", "Automotive", "Restaurants", "Education Management", "Food & Beverages", "Design", "Hospitality", "Accounting", "Events Services", "Nonprofit Organization Management", "Entertainment", "Electrical/Electronic Manufacturing", "Leisure, Travel & Tourism", "Professional Training & Coaching", "Transportation/Trucking/Railroad", "Law Practice", "Apparel & Fashion", "Architecture & Planning", "Mechanical Or Industrial Engineering", "Insurance", "Telecommunications", "Human Resources", "Staffing & Recruiting", "Sports", "Legal Services", "Oil & Energy", "Media Production", "Machinery", "Wholesale", "Consumer Goods"
+];
 
 export default function CampaignStepper() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -75,6 +49,7 @@ export default function CampaignStepper() {
     industry: [] as string[],
     keywords: [] as string[],
     company: [] as string[],
+    exclude_domains: [] as string[],
     number_of_leads: 100
   });
 
@@ -94,6 +69,7 @@ export default function CampaignStepper() {
           industry: res.data.industry ? res.data.industry.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
           keywords: res.data.keywords ? res.data.keywords.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
           company: res.data.company ? res.data.company.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
+          exclude_domains: res.data.exclude_domains ? res.data.exclude_domains.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
           number_of_leads: res.data.number_of_leads || 100
         });
       }
@@ -172,6 +148,7 @@ export default function CampaignStepper() {
       email_status: audienceFilters.email_status,
       industry: audienceFilters.industry.join(","),
       keywords: audienceFilters.keywords.join(","),
+      exclude_domains: audienceFilters.exclude_domains.join(","),
       number_of_leads: audienceFilters.number_of_leads,
     };
     
@@ -384,11 +361,12 @@ export default function CampaignStepper() {
 
                       <form onSubmit={handleAudienceBuilderSubmit} className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
-                          <TagsInput 
-                            label="Job Titiles"
+                          <AutocompleteTagsInput 
+                            label="Job Titles"
                             placeholder="Add titles + Enter"
                             tags={audienceFilters.job_title}
                             setTags={(t: string[]) => setAudienceFilters({ ...audienceFilters, job_title: t })}
+                            suggestions={JOB_TITLES}
                           />
 
                           <div>
@@ -410,25 +388,27 @@ export default function CampaignStepper() {
                             </select>
                           </div>
 
-                          <TagsInput 
+                          <AutocompleteTagsInput 
                             label="Location"
                             placeholder="Add locations + Enter"
                             tags={audienceFilters.location}
                             setTags={(t: string[]) => setAudienceFilters({ ...audienceFilters, location: t })}
+                            suggestions={LOCATIONS}
                           />
 
-                          <TagsInput 
+                          <AutocompleteTagsInput 
                             label="Target Companies (Domains)"
                             placeholder="Add domains + Enter"
                             tags={audienceFilters.company}
                             setTags={(t: string[]) => setAudienceFilters({ ...audienceFilters, company: t })}
                           />
 
-                          <TagsInput 
+                          <AutocompleteTagsInput 
                             label="Industry"
                             placeholder="Add industries + Enter"
                             tags={audienceFilters.industry}
                             setTags={(t: string[]) => setAudienceFilters({ ...audienceFilters, industry: t })}
+                            suggestions={INDUSTRIES}
                           />
 
                           <div>
@@ -450,7 +430,7 @@ export default function CampaignStepper() {
                             </select>
                           </div>
 
-                          <TagsInput 
+                          <AutocompleteTagsInput 
                             label="Keywords"
                             placeholder="Add keywords + Enter"
                             tags={audienceFilters.keywords}
@@ -470,6 +450,49 @@ export default function CampaignStepper() {
                               <option value="">Any Status</option>
                             </select>
                           </div>
+                        </div>
+
+                        {/* Exclude Domains / Blocklist */}
+                        <div className="col-span-1 md:col-span-2 mt-4 mb-2 p-4 bg-gray-50/70 border border-gray-200 rounded-lg">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-semibold text-gray-800 flex items-center gap-2">
+                              <span className="text-red-500">∅</span> Exclude Companies (Blocklist)
+                            </h4>
+                            <label className="cursor-pointer bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-1.5 px-3 rounded-md text-xs shadow-sm transition-all focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-gray-300 inline-flex items-center gap-1.5">
+                              <UploadCloud className="w-4 h-4 text-gray-500" /> Upload CSV
+                              <input type="file" className="sr-only" accept=".csv" onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const reader = new FileReader();
+                                reader.onload = (ev) => {
+                                  const text = ev.target?.result as string;
+                                  const lines = text.split('\n');
+                                  const domains = new Set<string>();
+                                  lines.forEach(line => {
+                                    const cols = line.split(',');
+                                    cols.forEach(col => {
+                                      let val = col.trim().toLowerCase();
+                                      if (val.includes('.') && !val.includes(' ')) {
+                                        val = val.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+                                        if (val) domains.add(val);
+                                      }
+                                    });
+                                  });
+                                  const newTags = Array.from(domains);
+                                  const merged = Array.from(new Set([...audienceFilters.exclude_domains, ...newTags]));
+                                  setAudienceFilters(prev => ({ ...prev, exclude_domains: merged }));
+                                };
+                                reader.readAsText(file);
+                              }} />
+                            </label>
+                          </div>
+                          <AutocompleteTagsInput 
+                            placeholder="Paste domains (e.g. comp.com) or upload a CSV file targeting any column..."
+                            tags={audienceFilters.exclude_domains}
+                            setTags={(t: string[]) => setAudienceFilters({ ...audienceFilters, exclude_domains: t })}
+                            type="textarea"
+                          />
+                          <p className="text-xs text-gray-500 mt-2">Any leads matching these domains will be discarded prior to deduplication and save.</p>
                         </div>
 
                         <div className="pt-6 border-t mt-6 flex items-center justify-between">
