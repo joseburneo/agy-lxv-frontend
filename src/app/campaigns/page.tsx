@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { AlertCircle, Search, Edit2, Loader2, RefreshCw, X, Check, Sparkles, ChevronUp, ChevronDown, Mail, MessageSquare, Zap, ArrowUpDown, ChevronRight, Filter, Users, Eye, Code2, Copy, CheckCircle2, ShieldAlert, ShieldCheck, Pencil, Save, RotateCcw } from "lucide-react";
+import { AlertCircle, Search, Edit2, Loader2, RefreshCw, X, Check, Sparkles, ChevronUp, ChevronDown, Mail, MessageSquare, Zap, ArrowUpDown, ChevronRight, Filter, Users, Eye, Code2, Copy, CheckCircle2, ShieldAlert, ShieldCheck, Pencil, Save, RotateCcw, CalendarDays } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "@/lib/supabase";
 
@@ -81,7 +81,8 @@ interface CopyIssue { severity: string; type: string; message: string; variable?
 interface CopyAuditVariant { variant: string; is_active: boolean; issues: CopyIssue[]; issue_count: number; }
 interface CopyAuditStep { step: number; delay: number; variants: CopyAuditVariant[]; }
 interface CopyAudit { total_issues: number; critical: number; warnings: number; info: number; steps: CopyAuditStep[]; }
-interface CampaignDetail { sequences: SequenceStep[]; replies: ReplyItem[]; reply_summary: { total: number; positive: number; mql: number; negative: number; ooo: number; bounced: number; other: number }; copy_audit?: CopyAudit | null; }
+interface DailyAnalytics { day_number: number; date: string; sent: number; opened: number; replies: number; opportunities: number; }
+interface CampaignDetail { sequences: SequenceStep[]; replies: ReplyItem[]; reply_summary: { total: number; positive: number; mql: number; negative: number; ooo: number; bounced: number; other: number }; copy_audit?: CopyAudit | null; daily_analytics?: DailyAnalytics[]; }
 type ReplyCategoryFilter = "all" | "positive" | "mql" | "negative" | "ooo" | "other";
 
 type SortKey = "tier" | "sent" | "reply" | "name";
@@ -111,7 +112,7 @@ export default function CampaignsPage() {
   // Campaign Detail Drawer
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerCampaign, setDrawerCampaign] = useState<CampaignItem | null>(null);
-  const [drawerTab, setDrawerTab] = useState<"copy" | "replies" | "optimize">("copy");
+  const [drawerTab, setDrawerTab] = useState<"daily" | "copy" | "replies" | "optimize">("daily");
   const [drawerLoading, setDrawerLoading] = useState(false);
   const [drawerData, setDrawerData] = useState<CampaignDetail | null>(null);
   const [drawerOptResult, setDrawerOptResult] = useState<string | null>(null);
@@ -232,7 +233,7 @@ export default function CampaignsPage() {
 
   const openDrawer = async (campaign: CampaignItem) => {
     setDrawerCampaign(campaign);
-    setDrawerTab("copy");
+    setDrawerTab("daily");
     setDrawerData(null);
     setDrawerOptResult(null);
     setReplyCategoryFilter("all");
@@ -711,6 +712,7 @@ export default function CampaignsPage() {
             {/* Tabs */}
             <div className="flex border-b border-border shrink-0">
               {([
+                { key: "daily" as const, icon: <CalendarDays className="w-4 h-4 mr-1.5" />, label: "Daily Analytics" },
                 { key: "copy" as const, icon: <Mail className="w-4 h-4 mr-1.5" />, label: "Current Copy" },
                 { key: "replies" as const, icon: <MessageSquare className="w-4 h-4 mr-1.5" />, label: `Replies${drawerData?.reply_summary?.total ? ` (${drawerData.reply_summary.total})` : ''}` },
                 { key: "optimize" as const, icon: <Zap className="w-4 h-4 mr-1.5" />, label: "Optimize" },
@@ -727,12 +729,60 @@ export default function CampaignsPage() {
                   <Loader2 className="w-10 h-10 animate-spin text-primary" /><p className="animate-pulse font-medium">Loading campaign intelligence...</p>
                 </div>
               ) : (
-                <>
+                  {/* TAB: Daily Breakdown */}
+                  {drawerTab === "daily" && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center"><CalendarDays className="w-4 h-4 mr-2 text-primary" />Daily Analytics</h4>
+                        <span className="text-[10px] text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">from Instantly</span>
+                      </div>
+                      
+                      {!drawerData?.daily_analytics || drawerData.daily_analytics.length === 0 ? (
+                        <div className="bg-secondary/30 rounded-lg border border-border p-8 text-center">
+                          <p className="text-sm font-medium text-muted-foreground">No daily analytics available for this campaign.</p>
+                        </div>
+                      ) : (
+                        <div className="rounded-lg border border-border overflow-hidden">
+                          <table className="w-full text-sm text-left">
+                            <thead className="bg-secondary/50 text-muted-foreground text-xs uppercase font-medium border-b border-border">
+                              <tr>
+                                <th className="px-4 py-3">Day</th>
+                                <th className="px-4 py-3">Date</th>
+                                <th className="px-4 py-3">Sent</th>
+                                <th className="px-4 py-3">Replies</th>
+                                <th className="px-4 py-3">Opportunities</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border bg-card">
+                              {drawerData.daily_analytics.map((day, idx) => (
+                                <tr key={idx} className="hover:bg-secondary/30 transition-colors">
+                                  <td className="px-4 py-3 font-medium text-foreground">Day {day.day_number}</td>
+                                  <td className="px-4 py-3 text-muted-foreground">{new Date(day.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</td>
+                                  <td className="px-4 py-3">{day.sent.toLocaleString()}</td>
+                                  <td className="px-4 py-3 font-semibold">{day.replies}</td>
+                                  <td className="px-4 py-3">
+                                    {day.opportunities > 0 ? (
+                                      <span className="inline-flex items-center text-amber-500 font-bold bg-amber-500/10 px-2 py-0.5 rounded-full text-xs">
+                                        💼 {day.opportunities}
+                                      </span>
+                                    ) : (
+                                      <span className="text-muted-foreground">0</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* TAB: Copy */}
                   {drawerTab === "copy" && (
                     <div className="space-y-4">
                       <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center"><Mail className="w-4 h-4 mr-2 text-primary" />Live Email Sequence</h4>
+                        <h4 className="text-sm font-semibold text-foreground uppercase tracking-wider flex items-center"><Mail className="w-4 h-4 mr-2 text-primary" />Current Copy</h4>
                         <div className="flex items-center gap-2">
                           <div className="flex bg-secondary border border-border rounded-md p-0.5">
                             <button onClick={() => setShowRawCopy(false)} className={`flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-sm transition-colors ${!showRawCopy ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
@@ -882,7 +932,7 @@ export default function CampaignsPage() {
                                     <label className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Subject</label>
                                     <input
                                       type="text" value={editSubject} onChange={e => setEditSubject(e.target.value)}
-                                      className="mt-1 w-full rounded-md border border-primary/30 bg-background px-3 py-2 text-sm text-foreground font-mono focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                                      className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground font-medium focus:outline-none focus:border-primary transition-all"
                                     />
                                   </div>
                                   <div>
@@ -890,7 +940,7 @@ export default function CampaignsPage() {
                                     <textarea
                                       value={editBody} onChange={e => setEditBody(e.target.value)}
                                       rows={12}
-                                      className="mt-1 w-full rounded-md border border-primary/30 bg-[#1a1a2e] px-3 py-2 text-xs text-foreground/80 font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary transition-all resize-y"
+                                      className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground font-mono leading-relaxed focus:outline-none focus:border-primary transition-all resize-y"
                                     />
                                   </div>
                                   {editResult && (
@@ -908,13 +958,13 @@ export default function CampaignsPage() {
                                     </p>
                                   )}
                                   {showRawCopy ? (
-                                    <div className="text-xs text-foreground/70 whitespace-pre-wrap leading-relaxed font-mono bg-[#1a1a2e] rounded-md p-3 border border-border/50 overflow-x-auto">
+                                    <div className="text-xs text-foreground whitespace-pre-wrap leading-relaxed font-mono bg-background rounded-md p-3 border border-border overflow-x-auto">
                                       <code>{variant.body_raw || variant.body}</code>
                                     </div>
                                   ) : variant.body_raw ? (
-                                    <div className="text-sm text-foreground bg-white dark:bg-[#1e1e2e] rounded-md p-4 border border-border/50 overflow-x-auto prose prose-sm dark:prose-invert max-w-none [&_a]:text-primary [&_a]:underline" dangerouslySetInnerHTML={{ __html: variant.body_raw }} />
+                                    <div className="text-sm text-black bg-white rounded-md p-4 border border-border/50 overflow-x-auto prose prose-sm max-w-none [&_a]:text-blue-600 [&_a]:underline" dangerouslySetInnerHTML={{ __html: variant.body_raw }} />
                                   ) : (
-                                    <div className="text-xs text-foreground/80 whitespace-pre-wrap leading-relaxed font-mono bg-secondary/30 rounded-md p-3 border border-border/50">
+                                    <div className="text-sm text-black bg-white rounded-md p-4 border border-border/50 overflow-x-auto whitespace-pre-wrap">
                                       {variant.body}
                                     </div>
                                   )}
