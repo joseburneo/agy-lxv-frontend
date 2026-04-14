@@ -15,7 +15,7 @@ const STEPS = [
 ];
 
 const JOB_TITLES = [
-  "Chief Executive Officer", "CEO", "Chief Financial Officer", "CFO", "Chief Operating Officer", "COO", "Chief Marketing Officer", "CMO", "Chief Technology Officer", "CTO", "Managing Director", "MD", "General Manager", "GM", "Vice President of Sales", "VP Sales", "Vice President of Marketing", "VP Marketing", "Vice President of Engineering", "VP Engineering", "Director of Sales", "Director of Marketing", "Director of Engineering", "Account Executive", "Software Engineer", "Project Manager", "Product Manager", "Head of Operations", "Finance Director", "Marketing Manager", "Sales Manager", "Human Resources Director", "HR Manager", "Data Scientist", "Lead Developer", "Consultant", "Business Analyst"
+  "Founder", "Co-Founder", "Owner", "Chief Executive Officer", "CEO", "Chief Operating Officer", "COO", "Chief Financial Officer", "CFO", "Chief Marketing Officer", "CMO", "Chief Revenue Officer", "CRO", "Chief Strategy Officer", "CSO", "Chief Product Officer", "CPO", "Chief Information Officer", "CIO", "Chief Technology Officer", "CTO", "Managing Director", "MD", "General Manager", "GM", "President", "Vice President", "VP", "Vice President of Sales", "VP Sales", "Vice President of Marketing", "VP Marketing", "Vice President of Operations", "VP Operations", "Vice President of Finance", "VP Finance", "Vice President of Product", "VP Product", "Vice President of Strategy", "Director of Sales", "Director of Marketing", "Director of Operations", "Director of Finance", "Director of IT", "Director of Engineering", "Head of Sales", "Head of Marketing", "Head of Operations", "Head of Growth", "Head of Product", "Head of Revenue", "Account Executive", "Business Development Manager", "Sales Manager", "Marketing Manager", "Finance Director", "Project Manager", "Product Manager", "Consultant", "Business Analyst"
 ];
 
 const LOCATIONS = [
@@ -27,7 +27,7 @@ const INDUSTRIES = [
 ];
 
 const SENIORITY_LEVELS = [
-  "Founder", "Owner", "Executive (C-Suite)", "Director", "Partner", "Vice President", "Head", "Manager"
+  "Founder", "Owner", "Executive (C-Suite)", "Partner", "Vice President", "Director", "Head", "Manager"
 ];
 
 const COMPANY_SIZES = [
@@ -375,6 +375,7 @@ export default function CampaignStepper() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
                           <AutocompleteTagsInput 
                             label="Job Titles"
+                            helpText="(e.g., 'sales' or similar)"
                             placeholder="Add titles + Enter"
                             tags={audienceFilters.job_title}
                             setTags={(t: string[]) => setAudienceFilters({ ...audienceFilters, job_title: t })}

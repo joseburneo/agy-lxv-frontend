@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { Check } from "lucide-react";
 
 interface AutocompleteTagsInputProps {
   tags: string[];
@@ -7,6 +8,7 @@ interface AutocompleteTagsInputProps {
   label?: string;
   suggestions?: string[];
   type?: "text" | "textarea";
+  helpText?: string;
 }
 
 export const AutocompleteTagsInput: React.FC<AutocompleteTagsInputProps> = ({ 
@@ -15,7 +17,8 @@ export const AutocompleteTagsInput: React.FC<AutocompleteTagsInputProps> = ({
   placeholder, 
   label, 
   suggestions = [],
-  type = "text"
+  type = "text",
+  helpText
 }) => {
   const [inputVal, setInputVal] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -33,10 +36,10 @@ export const AutocompleteTagsInput: React.FC<AutocompleteTagsInputProps> = ({
   }, [wrapperRef]);
 
   const filteredSuggestions = suggestions.filter(s => 
-    s.toLowerCase().includes(inputVal.toLowerCase()) && !tags.includes(s)
+    s.toLowerCase().includes(inputVal.toLowerCase())
   );
 
-  const addTag = (val: string) => {
+  const addTag = (val: string, keepOpen = false) => {
     // split by comma in case user pastes comma separated list
     const vals = val.split(',').map(v => v.trim()).filter(Boolean);
     const newTags = [...tags];
@@ -52,7 +55,24 @@ export const AutocompleteTagsInput: React.FC<AutocompleteTagsInputProps> = ({
       setTags(newTags);
     }
     setInputVal("");
-    setShowSuggestions(false);
+    if (!keepOpen) {
+      setShowSuggestions(false);
+    }
+  };
+
+  const toggleTag = (val: string) => {
+    if (tags.includes(val)) {
+      setTags(tags.filter(t => t !== val));
+    } else {
+      addTag(val, true);
+    }
+    // We keep inputVal to allow continued search, or clear it if they just click.
+    // If they clicked something while searching, maybe clear search so they see full list again?
+    // Let's clear search so they can keep picking from the top suggestions.
+    if (inputVal) {
+      setInputVal("");
+    }
+    wrapperRef.current?.querySelector('input')?.focus();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -71,6 +91,7 @@ export const AutocompleteTagsInput: React.FC<AutocompleteTagsInputProps> = ({
   return (
     <div className="w-full relative" ref={wrapperRef}>
       {label && <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>}
+      {helpText && <p className="text-xs text-gray-500 mb-2">{helpText}</p>}
       <div className="min-h-[42px] border border-gray-300 rounded-lg shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 flex flex-wrap items-center gap-1.5 p-1.5 bg-white">
         {tags.map((tag, index) => (
           <span key={index} className="flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-medium">
@@ -110,18 +131,22 @@ export const AutocompleteTagsInput: React.FC<AutocompleteTagsInputProps> = ({
 
       {showSuggestions && suggestions.length > 0 && inputVal.length > 0 && filteredSuggestions.length > 0 && (
          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
-            {filteredSuggestions.slice(0, 50).map(s => (
-               <div 
-                 key={s} 
-                 className="px-3 py-2 cursor-pointer hover:bg-blue-50 text-sm text-gray-700" 
-                 onMouseDown={(e) => {
-                   e.preventDefault(); // Prevent input onBlur from firing before click
-                   addTag(s);
-                 }}
-               >
-                 {s}
-               </div>
-            ))}
+            {filteredSuggestions.slice(0, 50).map(s => {
+               const isSelected = tags.includes(s);
+               return (
+                 <div 
+                   key={s} 
+                   className={`px-3 py-2 cursor-pointer text-sm flex items-center justify-between ${isSelected ? 'bg-blue-50 text-blue-800 font-medium' : 'hover:bg-gray-50 text-gray-700'}`} 
+                   onMouseDown={(e) => {
+                     e.preventDefault(); // Prevent input onBlur from firing before click
+                     toggleTag(s);
+                   }}
+                 >
+                   <span>{s}</span>
+                   {isSelected && <Check className="w-4 h-4 text-blue-600" />}
+                 </div>
+               );
+            })}
          </div>
       )}
       
@@ -129,18 +154,22 @@ export const AutocompleteTagsInput: React.FC<AutocompleteTagsInputProps> = ({
       {showSuggestions && suggestions.length > 0 && inputVal.length === 0 && (
          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
             <div className="px-3 py-1 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wider">Suggested</div>
-            {suggestions.filter(s => !tags.includes(s)).slice(0, 20).map(s => (
-               <div 
-                 key={s} 
-                 className="px-3 py-2 cursor-pointer hover:bg-blue-50 text-sm text-gray-700" 
-                 onMouseDown={(e) => {
-                   e.preventDefault();
-                   addTag(s);
-                 }}
-               >
-                 {s}
-               </div>
-            ))}
+            {suggestions.slice(0, 20).map(s => {
+               const isSelected = tags.includes(s);
+               return (
+                 <div 
+                   key={s} 
+                   className={`px-3 py-2 cursor-pointer text-sm flex items-center justify-between ${isSelected ? 'bg-blue-50 text-blue-800 font-medium' : 'hover:bg-gray-50 text-gray-700'}`} 
+                   onMouseDown={(e) => {
+                     e.preventDefault();
+                     toggleTag(s);
+                   }}
+                 >
+                   <span>{s}</span>
+                   {isSelected && <Check className="w-4 h-4 text-blue-600" />}
+                 </div>
+               );
+            })}
          </div>
       )}
     </div>
