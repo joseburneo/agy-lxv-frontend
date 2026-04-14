@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { UploadCloud, CheckCircle2, Loader2, ArrowRight, Save, Play, Settings, Users, Database, ArrowLeft, Search } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { prepareBatch, getJobStatus, enrichBatch, qualifyBatch, runAudienceBuilder, FactoryJobState } from "@/lib/factory-api";
+import { prepareBatch, getJobStatus, enrichBatch, qualifyBatch, runAudienceBuilder, parseAudiencePrompt, FactoryJobState } from "@/lib/factory-api";
 
 const STEPS = [
   { id: 1, name: "Select Source" },
@@ -12,6 +12,45 @@ const STEPS = [
   { id: 4, name: "Qualification Rules" },
   { id: 5, name: "Final Review" }
 ];
+
+const TagsInput = ({ tags, setTags, placeholder, label }: any) => {
+  const handleKeyDown = (e: any) => {
+    if (e.key === 'Enter' && e.target.value) {
+      e.preventDefault();
+      const val = e.target.value.trim();
+      if (val && !tags.includes(val)) {
+        setTags([...tags, val]);
+      }
+      e.target.value = '';
+    }
+  };
+
+  const removeTag = (indexToRemove: number) => {
+    setTags(tags.filter((_: any, index: number) => index !== indexToRemove));
+  };
+
+  return (
+    <div className="w-full">
+      {label && <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>}
+      <div className="min-h-[42px] border border-gray-300 rounded-lg shadow-sm focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 flex flex-wrap items-center gap-1.5 p-1.5 bg-white">
+        {tags.map((tag: string, index: number) => (
+          <span key={index} className="flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-medium">
+            {tag}
+            <button type="button" onClick={() => removeTag(index)} className="hover:text-blue-900 focus:outline-none">
+              &times;
+            </button>
+          </span>
+        ))}
+        <input 
+          type="text" 
+          placeholder={tags.length === 0 ? placeholder : ""} 
+          className="flex-1 min-w-[120px] outline-none text-sm bg-transparent border-none focus:ring-0 p-1"
+          onKeyDown={handleKeyDown}
+        />
+      </div>
+    </div>
+  );
+};
 
 export default function CampaignStepper() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -23,6 +62,47 @@ export default function CampaignStepper() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [jobState, setJobState] = useState<FactoryJobState | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Audience Builder State
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [isParsingAi, setIsParsingAi] = useState(false);
+  const [audienceFilters, setAudienceFilters] = useState({
+    job_title: [] as string[],
+    seniority_level: "",
+    location: [] as string[],
+    company_size: "",
+    email_status: "Validated",
+    industry: [] as string[],
+    keywords: [] as string[],
+    company: [] as string[],
+    number_of_leads: 100
+  });
+
+  const handleParsePrompt = async () => {
+    if (!aiPrompt.trim()) return;
+    setIsParsingAi(true);
+    setError(null);
+    try {
+      const res = await parseAudiencePrompt(aiPrompt);
+      if (res.data) {
+        setAudienceFilters({
+          job_title: res.data.job_title ? res.data.job_title.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
+          seniority_level: res.data.seniority_level || "",
+          location: res.data.location ? res.data.location.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
+          company_size: res.data.company_size || "",
+          email_status: "Validated", // Default
+          industry: res.data.industry ? res.data.industry.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
+          keywords: res.data.keywords ? res.data.keywords.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
+          company: res.data.company ? res.data.company.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
+          number_of_leads: res.data.number_of_leads || 100
+        });
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to parse prompt");
+    } finally {
+      setIsParsingAi(false);
+    }
+  };
 
   // Poll job status when processing
   useEffect(() => {
@@ -83,15 +163,16 @@ export default function CampaignStepper() {
   const handleAudienceBuilderSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
-    const formData = new FormData(e.currentTarget);
     const filters = {
-      job_title: formData.get("job_title"),
-      company: formData.get("company"),
-      location: formData.get("location"),
-      company_size: formData.get("company_size"),
-      industry: formData.get("industry"),
-      keywords: formData.get("keywords"),
-      number_of_leads: Number(formData.get("number_of_leads")) || 1000,
+      job_title: audienceFilters.job_title.join(","),
+      seniority_level: audienceFilters.seniority_level,
+      company: audienceFilters.company.join(","),
+      location: audienceFilters.location.join(","),
+      company_size: audienceFilters.company_size,
+      email_status: audienceFilters.email_status,
+      industry: audienceFilters.industry.join(","),
+      keywords: audienceFilters.keywords.join(","),
+      number_of_leads: audienceFilters.number_of_leads,
     };
     
     setIsProcessing(true);
@@ -276,29 +357,87 @@ export default function CampaignStepper() {
                       </div>
 
                       <h3 className="text-xl font-bold text-gray-900 mb-1">Define Target Audience</h3>
-                      <p className="text-sm text-gray-500 mb-8 border-b pb-6">Fill in the criteria to build your list. We will scrape and verify their emails.</p>
+                      <p className="text-sm text-gray-500 mb-6 font-medium">Use the AI Assistant to automatically fill the filters, or configure them manually below.</p>
 
-                      <form onSubmit={handleAudienceBuilderSubmit} className="space-y-5">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <div className="mb-8 bg-blue-50/50 border border-blue-100 rounded-xl p-5">
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="text-xl">🤖</span>
+                          <h4 className="font-bold text-blue-900">AI Assistant</h4>
+                        </div>
+                        <div className="flex gap-3 relative">
+                          <textarea 
+                            value={aiPrompt}
+                            onChange={(e) => setAiPrompt(e.target.value)}
+                            placeholder="e.g. Find 150 VP of Marketing in SaaS companies in Toronto size 51-100..."
+                            className="w-full border-blue-200 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-3 min-h-[80px] resize-y"
+                          />
+                          <button 
+                            type="button"
+                            onClick={handleParsePrompt}
+                            disabled={isParsingAi || !aiPrompt.trim()}
+                            className="absolute bottom-3 right-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-md px-4 py-1.5 text-sm font-semibold flex items-center gap-2 transition-colors shadow-sm"
+                          >
+                            {isParsingAi ? <Loader2 className="w-4 h-4 animate-spin" /> : "Auto-Fill Filters"}
+                          </button>
+                        </div>
+                      </div>
+
+                      <form onSubmit={handleAudienceBuilderSubmit} className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+                          <TagsInput 
+                            label="Job Titiles"
+                            placeholder="Add titles + Enter"
+                            tags={audienceFilters.job_title}
+                            setTags={(t: string[]) => setAudienceFilters({ ...audienceFilters, job_title: t })}
+                          />
+
                           <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">Job Title / Seniority</label>
-                            <input name="job_title" type="text" placeholder="e.g. CEO, Founder, Director of Marketing" className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border" />
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Seniority Level</label>
+                            <select 
+                              value={audienceFilters.seniority_level}
+                              onChange={(e) => setAudienceFilters({ ...audienceFilters, seniority_level: e.target.value })}
+                              className="w-full min-h-[42px] border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border"
+                            >
+                              <option value="">Any Seniority</option>
+                              <option value="Founder">Founder</option>
+                              <option value="Owner">Owner</option>
+                              <option value="Executive (C-Suite)">Executive (C-Suite)</option>
+                              <option value="Director">Director</option>
+                              <option value="Partner">Partner</option>
+                              <option value="Vice President">Vice President</option>
+                              <option value="Head">Head</option>
+                              <option value="Manager">Manager</option>
+                            </select>
                           </div>
+
+                          <TagsInput 
+                            label="Location"
+                            placeholder="Add locations + Enter"
+                            tags={audienceFilters.location}
+                            setTags={(t: string[]) => setAudienceFilters({ ...audienceFilters, location: t })}
+                          />
+
+                          <TagsInput 
+                            label="Target Companies (Domains)"
+                            placeholder="Add domains + Enter"
+                            tags={audienceFilters.company}
+                            setTags={(t: string[]) => setAudienceFilters({ ...audienceFilters, company: t })}
+                          />
+
+                          <TagsInput 
+                            label="Industry"
+                            placeholder="Add industries + Enter"
+                            tags={audienceFilters.industry}
+                            setTags={(t: string[]) => setAudienceFilters({ ...audienceFilters, industry: t })}
+                          />
+
                           <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">Location</label>
-                            <input name="location" type="text" placeholder="e.g. Texas, London, Germany" className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border" />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">Target Companies</label>
-                            <input name="company" type="text" placeholder="e.g. tesla.com, google.com (Optional)" className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border" />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">Industry</label>
-                            <input name="industry" type="text" placeholder="e.g. real estate, software" className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border" />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">Company Size (Exact range)</label>
-                            <select name="company_size" className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border">
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Company Size</label>
+                            <select 
+                              value={audienceFilters.company_size}
+                              onChange={(e) => setAudienceFilters({ ...audienceFilters, company_size: e.target.value })}
+                              className="w-full min-h-[42px] border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border"
+                            >
                               <option value="">Any Size</option>
                               <option value="1-10">1-10</option>
                               <option value="11-20">11-20</option>
@@ -307,21 +446,45 @@ export default function CampaignStepper() {
                               <option value="101-200">101-200</option>
                               <option value="201-500">201-500</option>
                               <option value="501-1000">501-1000</option>
+                              <option value="1001-2000">1001-2000+</option>
                             </select>
                           </div>
+
+                          <TagsInput 
+                            label="Keywords"
+                            placeholder="Add keywords + Enter"
+                            tags={audienceFilters.keywords}
+                            setTags={(t: string[]) => setAudienceFilters({ ...audienceFilters, keywords: t })}
+                          />
+                          
                           <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">Keywords</label>
-                            <input name="keywords" type="text" placeholder="e.g. saas, b2b, ecommerce" className="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border" />
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Email Status</label>
+                            <select 
+                              value={audienceFilters.email_status}
+                              onChange={(e) => setAudienceFilters({ ...audienceFilters, email_status: e.target.value })}
+                              className="w-full min-h-[42px] border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border"
+                            >
+                              <option value="Validated">Validated Only (Recommended)</option>
+                              <option value="Not Validated">Not Validated</option>
+                              <option value="Unknown">Unknown</option>
+                              <option value="">Any Status</option>
+                            </select>
                           </div>
                         </div>
 
                         <div className="pt-6 border-t mt-6 flex items-center justify-between">
                           <div className="flex items-center gap-4">
                              <label className="text-sm font-semibold text-gray-700">Leads to fetch:</label>
-                             <input name="number_of_leads" type="number" defaultValue={100} min={10} max={100000} className="w-32 border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border" />
+                             <input 
+                               type="number" 
+                               value={audienceFilters.number_of_leads}
+                               onChange={(e) => setAudienceFilters({ ...audienceFilters, number_of_leads: Number(e.target.value) || 0 })}
+                               min={10} max={100000} 
+                               className="w-32 min-h-[42px] border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border" 
+                             />
                           </div>
-                          <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-6 rounded-lg shadow-sm transition-all focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center gap-2">
-                            Run Audience Builder <Play className="w-4 h-4" />
+                          <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-sm transition-all focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center gap-2">
+                            Run Audience Builder <Play className="w-5 h-5 fill-current" />
                           </button>
                         </div>
                       </form>

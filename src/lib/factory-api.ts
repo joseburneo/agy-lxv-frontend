@@ -36,6 +36,20 @@ export async function runAudienceBuilder(filters: Record<string, any>): Promise<
 }
 
 /**
+ * AI Assistant: Parse natural language prompt into Audience Builder filters
+ */
+export async function parseAudiencePrompt(prompt: string): Promise<{ status: string; data: Record<string, any> }> {
+  const res = await fetch(`${BACKEND_URL}/api/factory/parse-audience-prompt`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt }),
+  });
+
+  if (!res.ok) throw new Error("Failed to parse prompt via AI");
+  return res.json();
+}
+
+/**
  * Step 2: Accept costs and enrich
  */
 export async function enrichBatch(jobId: string): Promise<{ status: string; job_id: string }> {
