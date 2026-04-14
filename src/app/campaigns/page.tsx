@@ -729,6 +729,7 @@ export default function CampaignsPage() {
                   <Loader2 className="w-10 h-10 animate-spin text-primary" /><p className="animate-pulse font-medium">Loading campaign intelligence...</p>
                 </div>
               ) : (
+                <>
                   {/* TAB: Daily Breakdown */}
                   {drawerTab === "daily" && (
                     <div className="space-y-4">
