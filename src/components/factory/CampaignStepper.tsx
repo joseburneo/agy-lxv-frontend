@@ -381,24 +381,13 @@ export default function CampaignStepper() {
                             suggestions={JOB_TITLES}
                           />
 
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">Seniority Level</label>
-                            <select 
-                              value={audienceFilters.seniority_level}
-                              onChange={(e) => setAudienceFilters({ ...audienceFilters, seniority_level: e.target.value })}
-                              className="w-full min-h-[42px] border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border"
-                            >
-                              <option value="">Any Seniority</option>
-                              <option value="Founder">Founder</option>
-                              <option value="Owner">Owner</option>
-                              <option value="Executive (C-Suite)">Executive (C-Suite)</option>
-                              <option value="Director">Director</option>
-                              <option value="Partner">Partner</option>
-                              <option value="Vice President">Vice President</option>
-                              <option value="Head">Head</option>
-                              <option value="Manager">Manager</option>
-                            </select>
-                          </div>
+                          <AutocompleteTagsInput 
+                            label="Seniority Level"
+                            placeholder="Add seniority levels + Enter"
+                            tags={audienceFilters.seniority_level}
+                            setTags={(t: string[]) => setAudienceFilters({ ...audienceFilters, seniority_level: t })}
+                            suggestions={SENIORITY_LEVELS}
+                          />
 
                           <AutocompleteTagsInput 
                             label="Location"
