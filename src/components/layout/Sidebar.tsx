@@ -11,7 +11,7 @@ export function Sidebar() {
   return (
     <aside className="w-64 h-screen border-r border-border bg-card flex flex-col shrink-0">
       <div className="h-16 flex items-center px-6 border-b border-border">
-        <img src="/logo.png" alt="Luxvance Logo" className="h-8 w-auto object-contain mr-3" />
+        <img src="/logo.svg" alt="Luxvance Logo" className="h-8 w-auto object-contain mr-3" />
         <span className="font-semibold text-lg tracking-tight">Agency OS</span>
       </div>
       <nav className="flex-1 p-4 space-y-1">

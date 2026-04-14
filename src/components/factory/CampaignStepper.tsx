@@ -504,12 +504,23 @@ export default function CampaignStepper() {
                             <div className="flex items-center gap-4">
                                <label className="text-sm font-semibold text-gray-700">Leads to fetch:</label>
                                <input 
-                                 type="number" 
-                                 value={audienceFilters.number_of_leads}
+                                 type="text" 
+                                 list="lead-options"
+                                 value={audienceFilters.number_of_leads || ""}
                                  onChange={(e) => setAudienceFilters({ ...audienceFilters, number_of_leads: Number(e.target.value) || 0 })}
-                                 min={10} max={100000} 
-                                 className="w-32 min-h-[42px] border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border" 
+                                 className="w-32 min-h-[42px] bg-white text-gray-900 border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border" 
                                />
+                               <datalist id="lead-options">
+                                 <option value="100" />
+                                 <option value="500" />
+                                 <option value="1000" />
+                                 <option value="2000" />
+                                 <option value="3000" />
+                                 <option value="4500" />
+                                 <option value="6000" />
+                                 <option value="8000" />
+                                 <option value="10000" />
+                               </datalist>
                             </div>
                             <div className="flex items-center gap-2">
                               <input 
