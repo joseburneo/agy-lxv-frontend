@@ -161,6 +161,150 @@ export default function FinanceDashboard() {
           />
         </section>
 
+        {/* CURRENT MONTH CASHFLOW HUB */}
+        <section className="bg-neutral-900 border border-white/10 rounded-2xl overflow-hidden shadow-2xl relative">
+          {/* Subtle background glow */}
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
+          
+          <div className="p-8">
+            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+              <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              {new Date().toLocaleString('en-US', { month: 'long' })} {new Date().getFullYear()} Overview
+            </h2>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              
+              {/* Left Side: Peace of Mind Math */}
+              <div className="lg:col-span-4 flex flex-col justify-center border-b lg:border-b-0 lg:border-r border-white/10 pb-8 lg:pb-0 lg:pr-8">
+                <div className="text-sm font-medium text-gray-400 uppercase tracking-wide mb-2">Net Cash Required</div>
+                {(() => {
+                  const storedAR = snapshot?.total_ar_outstanding ? Number(snapshot.total_ar_outstanding) : 0;
+                  
+                  // Math based only on Current Month Txs
+                  const currentMonthTransactions = apTransactions.filter(tx => {
+                    const d = new Date(tx.transaction_date);
+                    return d.getMonth() === new Date().getMonth() && d.getFullYear() === new Date().getFullYear();
+                  });
+                  const monthlyPendingAP = currentMonthTransactions
+                    .filter(tx => ['pending', 'failed', 'upcoming'].includes(tx.status))
+                    .reduce((sum, tx) => sum + Number(tx.amount), 0);
+
+                  const netRequired = monthlyPendingAP; // Strictly what must be paid this month
+                  const surplus = storedAR - netRequired;
+
+                  return (
+                    <>
+                      <div className="text-4xl font-extrabold text-white mb-2">
+                        USD {netRequired.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                      </div>
+                      {surplus >= 0 ? (
+                        <div className="text-sm text-green-400 flex items-center gap-1 font-medium bg-green-400/10 w-fit px-2.5 py-1 rounded-full cursor-help" title="Expected AR covers all pending AP">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                          AR Surplus: USD {surplus.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-red-400 flex items-center gap-1 font-medium bg-red-400/10 w-fit px-2.5 py-1 rounded-full">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                          AR Deficit: USD {Math.abs(surplus).toLocaleString(undefined, {minimumFractionDigits: 2})}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+
+              {/* Right Side: Progress Bars */}
+              <div className="lg:col-span-8 space-y-6">
+                {(() => {
+                  const storedAR = snapshot?.total_ar_outstanding ? Number(snapshot.total_ar_outstanding) : 0;
+                  
+                  // Math based only on Current Month Txs
+                  const currentMonthTransactions = apTransactions.filter(tx => {
+                    const d = new Date(tx.transaction_date);
+                    return d.getMonth() === new Date().getMonth() && d.getFullYear() === new Date().getFullYear();
+                  });
+                  
+                  const monthlyPaidAP = currentMonthTransactions
+                    .filter(tx => tx.status === 'paid')
+                    .reduce((sum, tx) => sum + Number(tx.amount), 0);
+                  const monthlyPendingAP = currentMonthTransactions
+                    .filter(tx => ['pending', 'failed', 'upcoming'].includes(tx.status))
+                    .reduce((sum, tx) => sum + Number(tx.amount), 0);
+                  const totalMonthlyAP = monthlyPaidAP + monthlyPendingAP;
+                  const apProgressPct = totalMonthlyAP > 0 ? (monthlyPaidAP / totalMonthlyAP) * 100 : 0;
+
+                  return (
+                    <>
+                      {/* AP Progress Bar */}
+                      <div>
+                        <div className="flex justify-between items-end mb-2">
+                          <div>
+                            <div className="text-sm font-semibold text-white">Accounts Payable</div>
+                            <div className="text-xs text-gray-500">Obligations for this month</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-bold text-white">USD {totalMonthlyAP.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                            <div className="text-xs text-red-400 font-medium tracking-wide">Falta Pagar: {monthlyPendingAP.toLocaleString()}</div>
+                          </div>
+                        </div>
+                        <div className="h-3 w-full bg-neutral-800 rounded-full overflow-hidden flex">
+                          <div 
+                            className="h-full bg-emerald-500 transition-all duration-700 ease-out"
+                            style={{ width: `${Math.min(100, Math.max(0, apProgressPct))}%` }}
+                            title={`Paid: USD ${monthlyPaidAP}`}
+                          />
+                          <div 
+                            className="h-full bg-rose-500/80 transition-all duration-700 ease-out"
+                            style={{ width: `${100 - apProgressPct}%` }}
+                            title={`Pending: USD ${monthlyPendingAP}`}
+                          />
+                        </div>
+                        <div className="flex justify-between mt-1.5 text-[10px] uppercase font-bold text-gray-500">
+                          <span className="text-emerald-500">Ya Pagado ({(apProgressPct).toFixed(0)}%)</span>
+                          <span>Total Mensual</span>
+                        </div>
+                      </div>
+
+                      {/* AR Progress Bar */}
+                      <div>
+                        <div className="flex justify-between items-end mb-2">
+                          <div>
+                            <div className="text-sm font-semibold text-white">Accounts Receivable</div>
+                            <div className="text-xs text-gray-500">Expected income</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm font-bold text-white">USD {storedAR.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                            <div className="text-xs text-yellow-400 font-medium tracking-wide">Pendiente Cobro: {storedAR.toLocaleString()}</div>
+                          </div>
+                        </div>
+                        <div className="h-3 w-full bg-neutral-800 rounded-full overflow-hidden flex">
+                          {/* Stripe integration placeholder - currently 0% green, 100% yellow */}
+                          <div 
+                            className="h-full bg-emerald-500 transition-all duration-700 ease-out"
+                            style={{ width: '0%' }} 
+                          />
+                          <div 
+                            className="h-full bg-amber-400/80 transition-all duration-700 ease-out"
+                            style={{ width: '100%' }}
+                            title={`Pending AR: USD ${storedAR}`}
+                          />
+                        </div>
+                        <div className="flex justify-between mt-1.5 text-[10px] uppercase font-bold text-gray-500">
+                          <span className="text-emerald-500">Cobrado (0%)</span>
+                          <span>Esperado</span>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+
+            </div>
+          </div>
+        </section>
+
         {/* Dynamic Views / Tables */}
         <section className="space-y-6">
           <div className="flex items-center justify-between">

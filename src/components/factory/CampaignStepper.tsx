@@ -26,6 +26,18 @@ const INDUSTRIES = [
   "Information Technology & Services", "Construction", "Marketing & Advertising", "Real Estate", "Health, Wellness & Fitness", "Management Consulting", "Computer Software", "Internet", "Retail", "Financial Services", "Consumer Services", "Hospital & Health Care", "Automotive", "Restaurants", "Education Management", "Food & Beverages", "Design", "Hospitality", "Accounting", "Events Services", "Nonprofit Organization Management", "Entertainment", "Electrical/Electronic Manufacturing", "Leisure, Travel & Tourism", "Professional Training & Coaching", "Transportation/Trucking/Railroad", "Law Practice", "Apparel & Fashion", "Architecture & Planning", "Mechanical Or Industrial Engineering", "Insurance", "Telecommunications", "Human Resources", "Staffing & Recruiting", "Sports", "Legal Services", "Oil & Energy", "Media Production", "Machinery", "Wholesale", "Consumer Goods"
 ];
 
+const SENIORITY_LEVELS = [
+  "Founder", "Owner", "Executive (C-Suite)", "Director", "Partner", "Vice President", "Head", "Manager"
+];
+
+const COMPANY_SIZES = [
+  "1-10", "11-20", "21-50", "51-100", "101-200", "201-500", "501-1000", "1001-2000"
+];
+
+const EMAIL_STATUSES = [
+  "Validated", "Not Validated", "Unknown"
+];
+
 export default function CampaignStepper() {
   const [currentStep, setCurrentStep] = useState(1);
   const [sourceMode, setSourceMode] = useState<"selection" | "apify" | "icypeas">("selection");
@@ -42,10 +54,10 @@ export default function CampaignStepper() {
   const [isParsingAi, setIsParsingAi] = useState(false);
   const [audienceFilters, setAudienceFilters] = useState({
     job_title: [] as string[],
-    seniority_level: "",
+    seniority_level: [] as string[],
     location: [] as string[],
-    company_size: "",
-    email_status: "Validated",
+    company_size: [] as string[],
+    email_status: ["Validated"] as string[],
     industry: [] as string[],
     keywords: [] as string[],
     company: [] as string[],
@@ -62,10 +74,10 @@ export default function CampaignStepper() {
       if (res.data) {
         setAudienceFilters({
           job_title: res.data.job_title ? res.data.job_title.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
-          seniority_level: res.data.seniority_level || "",
+          seniority_level: res.data.seniority_level ? res.data.seniority_level.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
           location: res.data.location ? res.data.location.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
-          company_size: res.data.company_size || "",
-          email_status: "Validated", // Default
+          company_size: res.data.company_size ? res.data.company_size.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
+          email_status: ["Validated"], // Default
           industry: res.data.industry ? res.data.industry.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
           keywords: res.data.keywords ? res.data.keywords.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
           company: res.data.company ? res.data.company.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
@@ -141,11 +153,11 @@ export default function CampaignStepper() {
     setError(null);
     const filters = {
       job_title: audienceFilters.job_title.join(","),
-      seniority_level: audienceFilters.seniority_level,
+      seniority_level: audienceFilters.seniority_level.join(","),
       company: audienceFilters.company.join(","),
       location: audienceFilters.location.join(","),
-      company_size: audienceFilters.company_size,
-      email_status: audienceFilters.email_status,
+      company_size: audienceFilters.company_size.join(","),
+      email_status: audienceFilters.email_status.join(","),
       industry: audienceFilters.industry.join(","),
       keywords: audienceFilters.keywords.join(","),
       exclude_domains: audienceFilters.exclude_domains.join(","),
@@ -411,24 +423,13 @@ export default function CampaignStepper() {
                             suggestions={INDUSTRIES}
                           />
 
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">Company Size</label>
-                            <select 
-                              value={audienceFilters.company_size}
-                              onChange={(e) => setAudienceFilters({ ...audienceFilters, company_size: e.target.value })}
-                              className="w-full min-h-[42px] border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border"
-                            >
-                              <option value="">Any Size</option>
-                              <option value="1-10">1-10</option>
-                              <option value="11-20">11-20</option>
-                              <option value="21-50">21-50</option>
-                              <option value="51-100">51-100</option>
-                              <option value="101-200">101-200</option>
-                              <option value="201-500">201-500</option>
-                              <option value="501-1000">501-1000</option>
-                              <option value="1001-2000">1001-2000+</option>
-                            </select>
-                          </div>
+                          <AutocompleteTagsInput 
+                            label="Company Size"
+                            placeholder="Add company sizes + Enter"
+                            tags={audienceFilters.company_size}
+                            setTags={(t: string[]) => setAudienceFilters({ ...audienceFilters, company_size: t })}
+                            suggestions={COMPANY_SIZES}
+                          />
 
                           <AutocompleteTagsInput 
                             label="Keywords"
@@ -437,19 +438,13 @@ export default function CampaignStepper() {
                             setTags={(t: string[]) => setAudienceFilters({ ...audienceFilters, keywords: t })}
                           />
                           
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">Email Status</label>
-                            <select 
-                              value={audienceFilters.email_status}
-                              onChange={(e) => setAudienceFilters({ ...audienceFilters, email_status: e.target.value })}
-                              className="w-full min-h-[42px] border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border"
-                            >
-                              <option value="Validated">Validated Only (Recommended)</option>
-                              <option value="Not Validated">Not Validated</option>
-                              <option value="Unknown">Unknown</option>
-                              <option value="">Any Status</option>
-                            </select>
-                          </div>
+                          <AutocompleteTagsInput 
+                            label="Email Status"
+                            placeholder="Add email statuses + Enter"
+                            tags={audienceFilters.email_status}
+                            setTags={(t: string[]) => setAudienceFilters({ ...audienceFilters, email_status: t })}
+                            suggestions={EMAIL_STATUSES}
+                          />
                         </div>
 
                         {/* Exclude Domains / Blocklist */}
