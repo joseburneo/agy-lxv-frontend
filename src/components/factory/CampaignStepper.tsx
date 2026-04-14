@@ -656,22 +656,25 @@ export default function CampaignStepper() {
                 <form onSubmit={handleQualify} className="space-y-5">
                   <div>
                     <label className="block text-sm font-semibold text-gray-900">Tier 1 (Gold) Criteria</label>
-                    <textarea name="tier1" rows={2} className="mt-1 block w-full rounded-lg border border-gray-300 p-3 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="e.g., Target has 'Partner' or 'Founder' in title and company > 10 employees." required></textarea>
+                    <textarea name="tier1" rows={2} className="mt-1 block w-full rounded-lg border border-gray-300 p-3 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-gray-900 bg-white" placeholder="e.g., Target has 'Partner' or 'Founder' in title and company > 10 employees."></textarea>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-900">Tier 2 (Silver) Criteria</label>
-                    <textarea name="tier2" rows={2} className="mt-1 block w-full rounded-lg border border-gray-300 p-3 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="e.g., Manager level, or relevant industry but smaller size."></textarea>
+                    <textarea name="tier2" rows={2} className="mt-1 block w-full rounded-lg border border-gray-300 p-3 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-gray-900 bg-white" placeholder="e.g., Manager level, or relevant industry but smaller size."></textarea>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-900">Tier 3 (Bronze) Criteria</label>
-                    <textarea name="tier3" rows={2} className="mt-1 block w-full rounded-lg border border-gray-300 p-3 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="e.g., Any other verified lead."></textarea>
+                    <textarea name="tier3" rows={2} className="mt-1 block w-full rounded-lg border border-gray-300 p-3 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-gray-900 bg-white" placeholder="e.g., Any other verified lead."></textarea>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-red-700">No-Go (Reject) Criteria</label>
-                    <textarea name="nogo" rows={2} className="mt-1 block w-full rounded-lg border border-red-300 p-3 shadow-sm focus:border-red-500 focus:ring-red-500" placeholder="e.g., No verified email, or specific competitors."></textarea>
+                    <textarea name="nogo" rows={2} className="mt-1 block w-full rounded-lg border border-red-300 p-3 shadow-sm focus:border-red-500 focus:ring-red-500 text-gray-900 bg-white" placeholder="e.g., No verified email, or specific competitors."></textarea>
                   </div>
                   
-                  <div className="flex justify-end pt-4">
+                  <div className="flex justify-between items-center pt-4">
+                    <button type="button" onClick={() => setCurrentStep(5)} className="text-gray-500 hover:text-gray-700 font-medium text-sm transition-colors decoration-dashed underline underline-offset-4">
+                      Skip Qualification & View Results
+                    </button>
                     <button type="submit" className="flex items-center gap-2 px-6 py-3 bg-gray-900 hover:bg-black text-white rounded-lg font-medium shadow-sm transition-colors">
                       <Play className="w-4 h-4" /> Run Classifier & Personalization
                     </button>
