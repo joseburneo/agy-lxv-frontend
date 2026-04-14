@@ -62,7 +62,8 @@ export default function CampaignStepper() {
     keywords: [] as string[],
     company: [] as string[],
     exclude_domains: [] as string[],
-    number_of_leads: 100
+    number_of_leads: 100,
+    work_emails_only: true
   });
 
   const handleParsePrompt = async () => {
@@ -162,6 +163,7 @@ export default function CampaignStepper() {
       keywords: audienceFilters.keywords.join(","),
       exclude_domains: audienceFilters.exclude_domains.join(","),
       number_of_leads: audienceFilters.number_of_leads,
+      work_emails_only: audienceFilters.work_emails_only,
     };
     
     setIsProcessing(true);
@@ -229,6 +231,15 @@ export default function CampaignStepper() {
     link.click();
   };
 
+  const handleAbort = async () => {
+    if (!jobId) return;
+    try {
+      import('@/lib/factory-api').then(api => api.abortApifyJob(jobId));
+    } catch (err) {
+      console.error("Failed to abort", err);
+    }
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-sm border p-6">
       {/* Stepper Header */}
@@ -293,6 +304,14 @@ export default function CampaignStepper() {
                   <Loader2 className="w-10 h-10 animate-spin text-blue-600 mb-4" />
                   <p className="font-medium text-gray-900">Working...</p>
                   <p className="text-sm text-gray-500 mt-2">{jobState?.data?.progress || 'Initiating...'}</p>
+                  {sourceMode === "apify" && jobState?.data?.run_id && (
+                    <button 
+                      onClick={handleAbort}
+                      className="mt-6 px-4 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-md text-sm font-medium transition-colors border border-red-200"
+                    >
+                      Abort Run
+                    </button>
+                  )}
                 </div>
               ) : (
                 <>
@@ -481,15 +500,28 @@ export default function CampaignStepper() {
                         </div>
 
                         <div className="pt-6 border-t mt-6 flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                             <label className="text-sm font-semibold text-gray-700">Leads to fetch:</label>
-                             <input 
-                               type="number" 
-                               value={audienceFilters.number_of_leads}
-                               onChange={(e) => setAudienceFilters({ ...audienceFilters, number_of_leads: Number(e.target.value) || 0 })}
-                               min={10} max={100000} 
-                               className="w-32 min-h-[42px] border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border" 
-                             />
+                          <div className="flex items-center gap-6">
+                            <div className="flex items-center gap-4">
+                               <label className="text-sm font-semibold text-gray-700">Leads to fetch:</label>
+                               <input 
+                                 type="number" 
+                                 value={audienceFilters.number_of_leads}
+                                 onChange={(e) => setAudienceFilters({ ...audienceFilters, number_of_leads: Number(e.target.value) || 0 })}
+                                 min={10} max={100000} 
+                                 className="w-32 min-h-[42px] border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-2 px-3 border" 
+                               />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input 
+                                type="checkbox" id="work_emails"
+                                checked={audienceFilters.work_emails_only}
+                                onChange={(e) => setAudienceFilters({ ...audienceFilters, work_emails_only: e.target.checked })}
+                                className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                              />
+                              <label htmlFor="work_emails" className="text-sm font-medium text-gray-700 cursor-pointer">
+                                Remove Personal Emails (Gmail, Yahoo, etc.)
+                              </label>
+                            </div>
                           </div>
                           <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-sm transition-all focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center gap-2">
                             Run Audience Builder <Play className="w-5 h-5 fill-current" />

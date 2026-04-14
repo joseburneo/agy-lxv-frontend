@@ -36,6 +36,20 @@ export async function runAudienceBuilder(filters: Record<string, any>): Promise<
 }
 
 /**
+ * Aborts a running Apify Audience Builder job
+ */
+export async function abortApifyJob(jobId: string): Promise<{ status: string; message: string }> {
+  const res = await fetch(`${BACKEND_URL}/api/factory/abort-job`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ job_id: jobId }),
+  });
+
+  if (!res.ok) throw new Error("Failed to abort job");
+  return res.json();
+}
+
+/**
  * AI Assistant: Parse natural language prompt into Audience Builder filters
  */
 export async function parseAudiencePrompt(prompt: string): Promise<{ status: string; data: Record<string, any> }> {
