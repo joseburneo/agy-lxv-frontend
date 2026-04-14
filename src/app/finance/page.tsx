@@ -12,6 +12,9 @@ export default function FinanceDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [drawerMode, setDrawerMode] = useState<'closed' | 'forecast' | 'ap_month' | 'ar_month'>('closed');
+  const [isAddingInvoice, setIsAddingInvoice] = useState(false);
+  const [newInvoice, setNewInvoice] = useState({ client_name: '', description: '', amount: '', due_date: '', status: 'pending' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadData = async () => {
     try {
@@ -102,6 +105,42 @@ export default function FinanceDashboard() {
       setError('Failed to load financial data. Ensure the database migrations have been run and keys are valid.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddInvoice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    const payload = {
+        client_name: newInvoice.client_name,
+        description: newInvoice.description || 'Monthly Retainer',
+        amount: parseFloat(newInvoice.amount),
+        currency: 'USD',
+        due_date: newInvoice.due_date,
+        status: newInvoice.status
+    };
+    
+    const { error: insErr } = await financeSupabase.from('ar_invoices').insert(payload);
+    setIsSubmitting(false);
+    if (!insErr) {
+        setIsAddingInvoice(false);
+        setNewInvoice({ client_name: '', description: '', amount: '', due_date: '', status: 'pending' });
+        loadData(); // Rehydrate
+    } else {
+        alert("Failed to add invoice: " + insErr.message);
+    }
+  };
+
+  const markInvoicePaid = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const btn = e.currentTarget as HTMLButtonElement;
+    btn.disabled = true;
+    const { error: updErr } = await financeSupabase.from('ar_invoices').update({ status: 'paid' }).eq('id', id);
+    if (!updErr) {
+        loadData();
+    } else {
+        alert("Failed to update status.");
+        btn.disabled = false;
     }
   };
 
@@ -454,33 +493,80 @@ export default function FinanceDashboard() {
 
               {/* AR MONTH MODE */}
               {drawerMode === 'ar_month' && (
-                <div className="bg-white/5 border border-white/10 rounded-lg p-1 w-full text-sm">
-                  {arTransactions.length > 0 ? (
-                    arTransactions.map((inv, idx) => (
-                      <div key={idx} className="flex justify-between items-center py-4 px-4 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors">
-                        <div className="flex flex-col space-y-1">
-                          <span className="text-white font-semibold text-base">{inv.client_name}</span>
-                          <span className="text-gray-400 text-xs">{inv.description || 'Monthly Retainer'}</span>
-                          <span className="text-gray-500 text-xs">Due: {new Date(inv.due_date).toLocaleDateString()}</span>
-                        </div>
-                        <div className="text-right flex flex-col items-end justify-center space-y-1">
-                          <span className="text-white font-bold block">USD {Number(inv.amount).toFixed(2)}</span>
-                          <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${
-                            inv.status === 'paid' ? 'bg-emerald-500/20 text-emerald-400' : 
-                            inv.status === 'overdue' ? 'bg-red-500/20 text-red-400' : 
-                            'bg-yellow-500/20 text-yellow-400'
-                          }`}>
-                            {inv.status}
-                          </span>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="p-8 text-center text-gray-500">
-                      <p className="mb-2">No invoices found for this month in the database.</p>
-                      <p className="text-xs">Database table `ar_invoices` must be populated manualy until Stripe integration is active.</p>
-                    </div>
+                <div className="w-full text-sm">
+                  
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-sm font-medium text-white uppercase tracking-wider">Client Invoices</h3>
+                    <button 
+                      onClick={() => setIsAddingInvoice(!isAddingInvoice)}
+                      className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-md text-xs font-semibold transition-colors"
+                    >
+                      {isAddingInvoice ? 'Cancel' : '+ Add Invoice'}
+                    </button>
+                  </div>
+
+                  {isAddingInvoice && (
+                    <form onSubmit={handleAddInvoice} className="bg-white/10 p-5 rounded-lg mb-6 border border-white/20 animate-in slide-in-from-top-2">
+                       <h4 className="text-white font-medium mb-4">Register New Expected Income</h4>
+                       <div className="grid grid-cols-2 gap-4 mb-4">
+                         <div>
+                            <label className="block text-xs text-gray-400 mb-1">Client Name</label>
+                            <input required type="text" value={newInvoice.client_name} onChange={e => setNewInvoice({...newInvoice, client_name: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded p-2 text-white" placeholder="e.g. Global Food Ventures" />
+                         </div>
+                         <div>
+                            <label className="block text-xs text-gray-400 mb-1">Amount (USD)</label>
+                            <input required type="number" step="0.01" value={newInvoice.amount} onChange={e => setNewInvoice({...newInvoice, amount: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded p-2 text-white" placeholder="2500.00" />
+                         </div>
+                         <div>
+                            <label className="block text-xs text-gray-400 mb-1">Description</label>
+                            <input type="text" value={newInvoice.description} onChange={e => setNewInvoice({...newInvoice, description: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded p-2 text-white" placeholder="Monthly Retainer" />
+                         </div>
+                         <div>
+                            <label className="block text-xs text-gray-400 mb-1">Due Date</label>
+                            <input required type="date" value={newInvoice.due_date} onChange={e => setNewInvoice({...newInvoice, due_date: e.target.value})} className="w-full bg-black/40 border border-white/10 rounded p-2 text-white" />
+                         </div>
+                       </div>
+                       <button type="submit" disabled={isSubmitting} className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded transition-colors disabled:opacity-50">
+                          {isSubmitting ? 'Saving...' : 'Save Invoice'}
+                       </button>
+                    </form>
                   )}
+
+                  <div className="bg-white/5 border border-white/10 rounded-lg p-1">
+                    {arTransactions.length > 0 ? (
+                      arTransactions.map((inv, idx) => (
+                        <div key={idx} className="flex justify-between items-center py-4 px-4 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors">
+                          <div className="flex flex-col space-y-1">
+                            <span className="text-white font-semibold text-base">{inv.client_name}</span>
+                            <span className="text-gray-400 text-xs">{inv.description || 'Monthly Retainer'}</span>
+                            <span className="text-gray-500 text-xs">Due: {new Date(inv.due_date).toLocaleDateString()}</span>
+                          </div>
+                          <div className="text-right flex flex-col items-end justify-center space-y-2">
+                            <span className="text-white font-bold block">USD {Number(inv.amount).toFixed(2)}</span>
+                            <div className="flex items-center space-x-2">
+                                {inv.status !== 'paid' && (
+                                  <button onClick={(e) => markInvoicePaid(inv.id, e)} className="text-[10px] bg-indigo-500/80 hover:bg-indigo-500 text-white px-2 py-0.5 rounded font-bold uppercase transition-colors">
+                                    Mark Paid
+                                  </button>
+                                )}
+                                <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${
+                                  inv.status === 'paid' ? 'bg-emerald-500/20 text-emerald-400' : 
+                                  inv.status === 'overdue' ? 'bg-red-500/20 text-red-400' : 
+                                  'bg-yellow-500/20 text-yellow-400'
+                                }`}>
+                                  {inv.status}
+                                </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-8 text-center text-gray-500">
+                        <p className="mb-2">No invoices found for this month in the database.</p>
+                        <p className="text-xs">Use the "Add Invoice" button above to manually populate expected income.</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
