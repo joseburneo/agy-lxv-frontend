@@ -1,38 +1,41 @@
 @import "tailwindcss";
 
 :root {
-  /* Luxvance Brand Palette */
-  --background: #1A1A1A; /* Luxvance Black */
-  --foreground: #FFFFFF;
+  /* Luxvance V3 Futuristic Theme */
+  --background: #050505; /* Abyss Black */
+  --foreground: #fafafa;
   
-  --card: #333333; /* Charcoal */
-  --card-foreground: #FFFFFF;
+  --card: rgba(14, 14, 18, 0.7); /* Frosted Glass Base */
+  --card-foreground: #fafafa;
   
-  --popover: #1A1A1A;
-  --popover-foreground: #F5F0E8; /* Cream */
+  --popover: #050505;
+  --popover-foreground: #fafafa;
   
-  --primary: #C9A84C; /* Luxvance Gold */
-  --primary-foreground: #1A1A1A;
+  --primary: #8B5CF6; /* Electric Neon Purple */
+  --primary-foreground: #ffffff;
   
-  --secondary: #333333; /* Charcoal */
-  --secondary-foreground: #C9A84C; /* Gold accents */
+  --secondary: #06B6D4; /* Reactive Cyan */
+  --secondary-foreground: #000000;
   
-  --muted: #333333; /* Charcoal */
-  --muted-foreground: #808080; /* Gray */
+  --muted: rgba(255, 255, 255, 0.05);
+  --muted-foreground: #a1a1aa;
   
-  --accent: #333333;
-  --accent-foreground: #C9A84C;
+  --accent: rgba(139, 92, 246, 0.15); /* Purple tint */
+  --accent-foreground: #8B5CF6;
   
-  --destructive: #7f1d1d;
+  --warning: #C9A84C; /* Luxvance Gold Accent */
+  --warning-foreground: #1A1A1A;
+
+  --destructive: #ef4444;
   --destructive-foreground: #fef2f2;
 
-  --border: #333333; /* Charcoal borders */
-  --input: #333333;
-  --ring: #C9A84C;
+  --border: rgba(255, 255, 255, 0.08); /* Faint LED-like border */
+  --input: rgba(255, 255, 255, 0.05);
+  --ring: #8B5CF6;
 
   /* Typography */
-  --font-lv-sans: "Calibri", "Helvetica Neue", sans-serif;
-  --font-lv-serif: "Georgia", serif;
+  --font-lv-sans: var(--font-geist-sans), "Helvetica Neue", sans-serif;
+  --font-lv-serif: var(--font-geist-mono), monospace;
 }
 
 @theme inline {
@@ -50,11 +53,22 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-border: var(--border);
   --font-sans: var(--font-lv-sans);
-  --font-serif: var(--font-lv-serif);
+  --font-mono: var(--font-lv-serif);
 }
 
 body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  /* Optional generic ambient backdrop */
+  background-image: radial-gradient(circle at top right, rgba(139, 92, 246, 0.05), transparent 400px), 
+                    radial-gradient(circle at bottom left, rgba(6, 182, 212, 0.05), transparent 400px);
+}
+
+/* Base Glassmorphism classes for components that use bg-card */
+.bg-card {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
 }
