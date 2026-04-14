@@ -7,9 +7,11 @@ import AccountsPayableTable from './components/AccountsPayableTable';
 
 export default function FinanceDashboard() {
   const [apTransactions, setApTransactions] = useState<any[]>([]);
+  const [arTransactions, setArTransactions] = useState<any[]>([]);
   const [snapshot, setSnapshot] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [drawerMode, setDrawerMode] = useState<'closed' | 'forecast' | 'ap_month' | 'ar_month'>('closed');
 
   const loadData = async () => {
     try {
@@ -82,6 +84,18 @@ export default function FinanceDashboard() {
       } else {
         setSnapshot(snapData);
       }
+
+      // Fetch the latest AR Invoices
+      const { data: arData, error: arErr } = await financeSupabase
+        .from('ar_invoices')
+        .select('*')
+        .order('due_date', { ascending: true });
+
+      if (arErr && arErr.code !== '42P01') { // 42P01: relation does not exist
+        console.error("AR Invoices error:", arErr);
+      } else {
+        setArTransactions(arData || []);
+      }
     } catch (err: any) {
       console.error('Error fetching finance data:', err);
       // Suppress specific error messages if table just doesn't exist yet, to not break UI.
@@ -111,8 +125,6 @@ export default function FinanceDashboard() {
   const immediateLiabilities = apTransactions
     .filter(tx => ['pending', 'failed'].includes(tx.status))
     .reduce((sum, tx) => sum + Number(tx.amount), 0);
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-neutral-900 text-white p-8">
@@ -157,7 +169,7 @@ export default function FinanceDashboard() {
             description="Projected net balance (AR inbound - AP outbound)"
             trend="neutral"
             trendValue="30d outlook"
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => setDrawerMode('forecast')}
           />
         </section>
 
@@ -238,10 +250,13 @@ export default function FinanceDashboard() {
                   return (
                     <>
                       {/* AP Progress Bar */}
-                      <div>
+                      <div 
+                        className="cursor-pointer group hover:bg-white/5 p-3 -mx-3 rounded-xl transition-colors"
+                        onClick={() => setDrawerMode('ap_month')}
+                      >
                         <div className="flex justify-between items-end mb-2">
                           <div>
-                            <div className="text-sm font-semibold text-white">Accounts Payable</div>
+                            <div className="text-sm font-semibold text-white group-hover:text-indigo-400 transition-colors">Accounts Payable</div>
                             <div className="text-xs text-gray-500">Obligations for this month</div>
                           </div>
                           <div className="text-right">
@@ -263,15 +278,18 @@ export default function FinanceDashboard() {
                         </div>
                         <div className="flex justify-between mt-1.5 text-[10px] uppercase font-bold text-gray-500">
                           <span className="text-emerald-500">Ya Pagado ({(apProgressPct).toFixed(0)}%)</span>
-                          <span>Total Mensual</span>
+                          <span>Ver Transacciones ➝</span>
                         </div>
                       </div>
 
                       {/* AR Progress Bar */}
-                      <div>
+                      <div 
+                        className="cursor-pointer group hover:bg-white/5 p-3 -mx-3 rounded-xl transition-colors"
+                        onClick={() => setDrawerMode('ar_month')}
+                      >
                         <div className="flex justify-between items-end mb-2">
                           <div>
-                            <div className="text-sm font-semibold text-white">Accounts Receivable</div>
+                            <div className="text-sm font-semibold text-white group-hover:text-indigo-400 transition-colors">Accounts Receivable</div>
                             <div className="text-xs text-gray-500">Expected income</div>
                           </div>
                           <div className="text-right">
@@ -293,7 +311,7 @@ export default function FinanceDashboard() {
                         </div>
                         <div className="flex justify-between mt-1.5 text-[10px] uppercase font-bold text-gray-500">
                           <span className="text-emerald-500">Cobrado (0%)</span>
-                          <span>Esperado</span>
+                          <span>Ver Transacciones ➝</span>
                         </div>
                       </div>
                     </>
@@ -326,79 +344,146 @@ export default function FinanceDashboard() {
           )}
         </section>
 
-        {/* Interactive Modal */}
-        {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm transition-all" onClick={() => setIsModalOpen(false)}>
+        {/* Interactive Modal / Drawer */}
+        {drawerMode !== 'closed' && (
+          <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm transition-all" onClick={() => setDrawerMode('closed')}>
             <div 
               className="w-full max-w-2xl bg-neutral-900 border-l border-white/10 h-full p-8 overflow-y-auto shadow-2xl animate-in slide-in-from-right duration-300"
               onClick={e => e.stopPropagation()} // Prevent close when clicking inside drawer
             >
               <div className="flex justify-between items-center mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-white">Financial Forecast Breakdown</h2>
-                  <p className="text-gray-400 text-sm mt-1">Expected inflows and outflows over the next 30 days.</p>
+                  <h2 className="text-2xl font-bold text-white">
+                    {drawerMode === 'forecast' && 'Financial Forecast'}
+                    {drawerMode === 'ap_month' && 'Accounts Payable Details'}
+                    {drawerMode === 'ar_month' && 'Accounts Receivable Details'}
+                  </h2>
+                  <p className="text-gray-400 text-sm mt-1">
+                    {drawerMode === 'forecast' && 'Expected inflows and outflows over the next 30 days.'}
+                    {drawerMode === 'ap_month' && `All vendor expenses recorded for ${new Date().toLocaleString('en-US', {month: 'long'})}.`}
+                    {drawerMode === 'ar_month' && `All expected client invoices for ${new Date().toLocaleString('en-US', {month: 'long'})}.`}
+                  </p>
                 </div>
-                <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-white p-2">✕</button>
+                <button onClick={() => setDrawerMode('closed')} className="text-gray-400 hover:text-white p-2">✕</button>
               </div>
 
-              {/* Chart Placeholder / Visualizer */}
-              <div className="bg-white/5 border border-white/10 rounded-xl p-6 mb-8 flex flex-col items-center justify-center min-h-[200px]">
-                <div className="flex items-center justify-between w-full max-w-sm mb-4">
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500 font-semibold uppercase">Accounts Receivable</div>
-                    <div className="text-lg font-bold text-green-400">+ د.إ {Number(snapshot?.total_ar_outstanding || 0).toLocaleString()}</div>
-                  </div>
-                  <div className="text-gray-600 font-light text-2xl">-</div>
-                  <div className="text-center">
-                    <div className="text-xs text-gray-500 font-semibold uppercase">Accounts Payable</div>
-                    <div className="text-lg font-bold text-red-400">- USD {Number(snapshot?.total_ap_upcoming_30d || 0).toLocaleString()}</div>
-                  </div>
-                </div>
-                <div className="w-full h-[1px] bg-white/10 my-4" />
-                <div className="text-center">
-                  <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Projected 30d Balance</div>
-                  <div className="text-3xl font-extrabold text-white">
-                    د.إ {Number((snapshot?.total_ar_outstanding || 0) * 3.67 - (snapshot?.total_ap_upcoming_30d || 0)).toLocaleString(undefined, {minimumFractionDigits: 2})}
-                  </div>
-                </div>
-              </div>
-
-              {/* Transactions Breakdown */}
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-sm font-medium text-green-400 uppercase tracking-wider mb-3">Expected Inflows (AR)</h3>
-                  <div className="bg-white/5 border border-green-500/10 rounded-lg p-4 w-full text-sm">
-                    <div className="flex justify-between py-2 border-b border-white/5">
-                      <span className="text-white">Active Agency Subscriptions</span>
-                      <span className="text-gray-400">د.إ {snapshot?.total_ar_outstanding}</span>
+              {/* FORECAST MODE */}
+              {drawerMode === 'forecast' && (
+                <>
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-6 mb-8 flex flex-col items-center justify-center min-h-[200px]">
+                    <div className="flex items-center justify-between w-full max-w-sm mb-4">
+                      <div className="text-center">
+                        <div className="text-xs text-gray-500 font-semibold uppercase">Accounts Receivable</div>
+                        <div className="text-lg font-bold text-green-400">+ د.إ {Number(snapshot?.total_ar_outstanding || 0).toLocaleString()}</div>
+                      </div>
+                      <div className="text-gray-600 font-light text-2xl">-</div>
+                      <div className="text-center">
+                        <div className="text-xs text-gray-500 font-semibold uppercase">Accounts Payable</div>
+                        <div className="text-lg font-bold text-red-400">- USD {Number(snapshot?.total_ap_upcoming_30d || 0).toLocaleString()}</div>
+                      </div>
+                    </div>
+                    <div className="w-full h-[1px] bg-white/10 my-4" />
+                    <div className="text-center">
+                      <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-1">Projected 30d Balance</div>
+                      <div className="text-3xl font-extrabold text-white">
+                        د.إ {Number((snapshot?.total_ar_outstanding || 0) * 3.67 - (snapshot?.total_ap_upcoming_30d || 0)).toLocaleString(undefined, {minimumFractionDigits: 2})}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div>
-                  <h3 className="text-sm font-medium text-red-400 uppercase tracking-wider mb-3">Pending Outflows (AP)</h3>
-                  <div className="bg-white/5 border border-red-500/10 rounded-lg p-1 w-full text-sm">
-                    {apTransactions.filter(tx => ['pending', 'failed', 'upcoming'].includes(tx.status)).map((tx, idx) => (
-                      <div key={idx} className="flex justify-between items-center py-3 px-3 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors">
-                        <div className="flex flex-col">
-                          <span className="text-white font-medium">{tx.vendor_name}</span>
-                          <span className="text-gray-500 text-xs truncate max-w-[250px]">{tx.email_subject || 'Subscription'}</span>
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-sm font-medium text-green-400 uppercase tracking-wider mb-3">Expected Inflows (AR)</h3>
+                      <div className="bg-white/5 border border-green-500/10 rounded-lg p-4 w-full text-sm flex justify-between">
+                         <span className="text-white">Active Agency Subscriptions</span>
+                         <span className="text-gray-400">ד.إ {snapshot?.total_ar_outstanding}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-red-400 uppercase tracking-wider mb-3">Pending Outflows (AP)</h3>
+                      <div className="bg-white/5 border border-red-500/10 rounded-lg p-1 w-full text-sm">
+                        {apTransactions.filter(tx => ['pending', 'failed', 'upcoming'].includes(tx.status)).map((tx, idx) => (
+                          <div key={idx} className="flex justify-between items-center py-3 px-3 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors">
+                            <div className="flex flex-col">
+                              <span className="text-white font-medium">{tx.vendor_name}</span>
+                              <span className="text-gray-500 text-xs truncate max-w-[250px]">{tx.email_subject || 'Subscription'}</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-gray-300 block">USD {Number(tx.amount).toFixed(2)}</span>
+                              <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${tx.status === 'failed' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                                {tx.status}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* AP MONTH MODE */}
+              {drawerMode === 'ap_month' && (
+                <div className="bg-white/5 border border-white/10 rounded-lg p-1 w-full text-sm">
+                  {apTransactions
+                    .filter(tx => {
+                      const d = new Date(tx.transaction_date);
+                      return d.getMonth() === new Date().getMonth() && d.getFullYear() === new Date().getFullYear();
+                    })
+                    .map((tx, idx) => (
+                    <div key={idx} className="flex justify-between items-center py-4 px-4 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors">
+                      <div className="flex flex-col space-y-1">
+                        <span className="text-white font-semibold text-base">{tx.vendor_name}</span>
+                        <span className="text-gray-400 text-xs line-clamp-1 max-w-[300px]">{tx.email_subject || tx.description || 'No description available'}</span>
+                        <span className="text-gray-500 text-xs">Date: {new Date(tx.transaction_date).toLocaleDateString()}</span>
+                      </div>
+                      <div className="text-right flex flex-col items-end justify-center space-y-1">
+                        <span className="text-white font-bold block">USD {Number(tx.amount).toFixed(2)}</span>
+                        <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${
+                          tx.status === 'paid' ? 'bg-emerald-500/20 text-emerald-400' : 
+                          tx.status === 'failed' ? 'bg-red-500/20 text-red-400' : 
+                          'bg-yellow-500/20 text-yellow-400'
+                        }`}>
+                          {tx.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* AR MONTH MODE */}
+              {drawerMode === 'ar_month' && (
+                <div className="bg-white/5 border border-white/10 rounded-lg p-1 w-full text-sm">
+                  {arTransactions.length > 0 ? (
+                    arTransactions.map((inv, idx) => (
+                      <div key={idx} className="flex justify-between items-center py-4 px-4 hover:bg-white/5 border-b border-white/5 last:border-0 transition-colors">
+                        <div className="flex flex-col space-y-1">
+                          <span className="text-white font-semibold text-base">{inv.client_name}</span>
+                          <span className="text-gray-400 text-xs">{inv.description || 'Monthly Retainer'}</span>
+                          <span className="text-gray-500 text-xs">Due: {new Date(inv.due_date).toLocaleDateString()}</span>
                         </div>
-                        <div className="text-right">
-                          <span className="text-gray-300 block">USD {Number(tx.amount).toFixed(2)}</span>
-                          <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${tx.status === 'failed' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
-                            {tx.status}
+                        <div className="text-right flex flex-col items-end justify-center space-y-1">
+                          <span className="text-white font-bold block">USD {Number(inv.amount).toFixed(2)}</span>
+                          <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${
+                            inv.status === 'paid' ? 'bg-emerald-500/20 text-emerald-400' : 
+                            inv.status === 'overdue' ? 'bg-red-500/20 text-red-400' : 
+                            'bg-yellow-500/20 text-yellow-400'
+                          }`}>
+                            {inv.status}
                           </span>
                         </div>
                       </div>
-                    ))}
-                    {apTransactions.filter(tx => ['pending', 'failed', 'upcoming'].includes(tx.status)).length === 0 && (
-                      <div className="p-4 text-gray-500 text-center">No pending outflows detected.</div>
-                    )}
-                  </div>
+                    ))
+                  ) : (
+                    <div className="p-8 text-center text-gray-500">
+                      <p className="mb-2">No invoices found for this month in the database.</p>
+                      <p className="text-xs">Database table `ar_invoices` must be populated manualy until Stripe integration is active.</p>
+                    </div>
+                  )}
                 </div>
-              </div>
-              
+              )}
+
             </div>
           </div>
         )}
