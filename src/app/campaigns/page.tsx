@@ -75,7 +75,7 @@ function ReplyCategoryBadge({ category }: { category: string }) {
 
 // ---- Types ----
 interface CampaignItem { id: string; name: string; client: string; sent: number; open: string; reply: string; opportunities: number; replies: number; copyErrors: string[]; isCompliant: boolean; status: string; }
-interface ReplyItem { category: string; first_name: string; last_name: string; email: string; job_title: string; company_name: string; outreach_email: string; lead_reply: string; reply_date: string; campaign_name: string; }
+interface ReplyItem { category: string; first_name: string; last_name: string; email: string; job_title: string; company_name: string; outbound_email: string; inbound_email: string; reply_date: string; campaign_name: string; personalized_line?: string; }
 interface SequenceStep { step: number; delay: number; variants: { subject: string; body: string; body_raw?: string; is_active?: boolean }[]; }
 interface CopyIssue { severity: string; type: string; message: string; variable?: string; }
 interface CopyAuditVariant { variant: string; is_active: boolean; issues: CopyIssue[]; issue_count: number; }
@@ -1045,29 +1045,29 @@ export default function CampaignsPage() {
                             </div>
                           </div>
                           <div className="p-4 space-y-3">
-                            {reply.outreach_email && (
+                            {reply.outbound_email && (
                               <div>
                                 <div className="flex items-center justify-between mb-1">
                                   <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">📤 What We Sent</p>
-                                  <button onClick={() => copyToClipboard(reply.outreach_email, `oe-${i}`)} className="text-muted-foreground hover:text-foreground p-0.5" title="Copy">
+                                  <button onClick={() => copyToClipboard(reply.outbound_email, `oe-${i}`)} className="text-muted-foreground hover:text-foreground p-0.5" title="Copy">
                                     {copiedIdx === `oe-${i}` ? <CheckCircle2 className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                                   </button>
                                 </div>
-                                <div className="text-xs text-foreground/60 whitespace-pre-wrap bg-secondary/20 rounded-md p-3 border border-border/30 max-h-32 overflow-y-auto leading-relaxed">{reply.outreach_email.slice(0, 600)}{reply.outreach_email.length > 600 && '...'}</div>
+                                <div className="text-xs text-foreground/60 whitespace-pre-wrap bg-secondary/20 rounded-md p-3 border border-border/30 max-h-32 overflow-y-auto leading-relaxed">{reply.outbound_email.slice(0, 600)}{reply.outbound_email.length > 600 && '...'}</div>
                               </div>
                             )}
-                            {reply.lead_reply && (
+                            {reply.inbound_email && (
                               <div>
                                 <div className="flex items-center justify-between mb-1">
                                   <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">💬 Their Reply</p>
-                                  <button onClick={() => copyToClipboard(reply.lead_reply, `lr-${i}`)} className="text-muted-foreground hover:text-foreground p-0.5" title="Copy">
+                                  <button onClick={() => copyToClipboard(reply.inbound_email, `lr-${i}`)} className="text-muted-foreground hover:text-foreground p-0.5" title="Copy">
                                     {copiedIdx === `lr-${i}` ? <CheckCircle2 className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
                                   </button>
                                 </div>
-                                <div className="text-sm text-foreground whitespace-pre-wrap bg-primary/5 rounded-md p-3 border border-primary/10 leading-relaxed">{reply.lead_reply}</div>
+                                <div className="text-sm text-foreground whitespace-pre-wrap bg-primary/5 rounded-md p-3 border border-primary/10 leading-relaxed">{reply.inbound_email}</div>
                               </div>
                             )}
-                            {!reply.outreach_email && !reply.lead_reply && (
+                            {!reply.outbound_email && !reply.inbound_email && (
                               <p className="text-xs text-muted-foreground italic">No email content available for this reply.</p>
                             )}
                           </div>
